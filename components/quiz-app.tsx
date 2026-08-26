@@ -17,35 +17,41 @@ import {
   type ChoiceKey,
 } from '@/lib/quiz-types'
 
-// 네트워크 호출 없이 setTimeout으로 생성 시간만 흉내 낸다.
-const FAKE_GENERATE_MS = 2600
+// EX-10 로딩 경과 단계 시간 설정 (ms)
 const STAGE_1_MS = 5000
 const STAGE_2_MS = 12000
 const TIMEOUT_MS = 20000
 
-/** 결과 공유·복사에 쓰는 텍스트 */
-function buildShareText(state: QuizState, difficultyLabel: string) {
-  const lines = state.questions.map((question, index) => {
-    const picked = state.answers[index]
-    const correct = picked === question.answer
-    return `${index + 1}. [${QUESTION_TYPE_LABEL[question.type]}] ${question.targetWord} — ${correct ? 'O' : 'X'} (고른 답 ${picked ?? '-'}, 정답 ${question.answer})`
-  })
+/** 결과 공유·복사에 쓰는 텍스트 (PRD §3.3 표준 템플릿) */
+function buildShareText(state: QuizState) {
+  const targetWords = Array.from(
+    new Set(state.questions.map((q) => q.targetWord)),
+  ).join(', ')
+  const total = state.questions.length
   const score = state.questions.filter(
     (question, index) => state.answers[index] === question.answer,
   ).length
 
-  return [
-    '취약 단어 타겟형 토익 문제 생성기 결과',
-    `난이도: ${difficultyLabel}`,
-    `점수: ${score} / ${state.questions.length}`,
-    '',
-    ...lines,
-  ].join('\n')
+  // 출제된 문항의 유형별 정오 요약
+  const typeSummary = state.questions
+    .map((q, idx) => {
+      const correct = state.answers[idx] === q.answer
+      return `${QUESTION_TYPE_LABEL[q.type]} ${correct ? 'O' : 'X'}`
+    })
+    .join(' · ')
+
+  const serviceUrl =
+    typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://toeic-weak-words.app'
+
+  return `취약 단어 ${targetWords}로 토익 문제 ${total}개 풀었어요! 정답 ${score}/${total} (${typeSummary}) — 나도 풀어보기: ${serviceUrl}`
 }
 
 export function QuizApp() {
   const [state, dispatch] = useReducer(quizReducer, initialState)
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const parsed = useMemo(() => parseWords(state.rawInput), [state.rawInput])
 
@@ -54,38 +60,100 @@ export function QuizApp() {
     headingRef.current?.focus()
   }, [state.focusToken])
 
-  // 로딩 타이머: 문구 3단계 교체 + 타임아웃
+  // AI 문제 생성 및 4단계 로딩 타이머 (EX-10) + 자동 1회 재시도 (EX-4, EX-5, EX-6, EX-9)
   useEffect(() => {
     if (state.phase !== 'loading' || state.loadingFrozen) return
 
-    const timers = [
-      window.setTimeout(
-        () => dispatch({ type: 'generate/success' }),
-        FAKE_GENERATE_MS,
-      ),
-      window.setTimeout(
-        () => dispatch({ type: 'loading/stage', stage: 1 }),
-        STAGE_1_MS,
-      ),
-      window.setTimeout(
-        () => dispatch({ type: 'loading/stage', stage: 2 }),
-        STAGE_2_MS,
-      ),
-      window.setTimeout(
-        () => dispatch({ type: 'generate/fail', kind: 'timeout' }),
-        TIMEOUT_MS,
-      ),
-    ]
-    return () => timers.forEach((timer) => window.clearTimeout(timer))
-  }, [state.phase, state.loadingFrozen])
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
-  const difficultyLabel = state.difficulty
-    ? DIFFICULTY_LABEL[state.difficulty]
-    : '미선택'
-  const shareText = useMemo(
-    () => buildShareText(state, difficultyLabel),
-    [state, difficultyLabel],
-  )
+    // 단계별 UI 문구 변경 타이머
+    const timerStage1 = window.setTimeout(() => {
+      dispatch({ type: 'loading/stage', stage: 1 })
+    }, STAGE_1_MS)
+
+    const timerStage2 = window.setTimeout(() => {
+      dispatch({ type: 'loading/stage', stage: 2 })
+    }, STAGE_2_MS)
+
+    const timerTimeout = window.setTimeout(() => {
+      controller.abort()
+      dispatch({ type: 'generate/fail', kind: 'timeout' })
+    }, TIMEOUT_MS)
+
+    async function fetchQuestionsWithRetry() {
+      const payload = {
+        words: parsed.used,
+        difficulty: state.difficulty,
+      }
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          })
+
+          if (!res.ok) {
+            if (res.status === 429) {
+              if (attempt === 0) continue // 1회 재시도
+              dispatch({ type: 'generate/fail', kind: 'busy' })
+              return
+            }
+            if (attempt === 0) continue // 1회 재시도
+            dispatch({ type: 'generate/fail', kind: 'generic' })
+            return
+          }
+
+          const data = await res.json()
+          if (!data.questions || data.questions.length === 0) {
+            if (attempt === 0) continue // EX-4(0개) / EX-5(전량폐기) 1회 재시도
+            dispatch({ type: 'generate/fail', kind: 'generic' })
+            return
+          }
+
+          // EX-6: 3문항 동일 유형인 경우 1회 자동 재시도
+          if (data.isHomogeneous && attempt === 0) {
+            continue
+          }
+
+          // 성공
+          dispatch({
+            type: 'generate/success',
+            questions: data.questions,
+          })
+          return
+        } catch (err: unknown) {
+          if (controller.signal.aborted) {
+            return
+          }
+          if (attempt === 0) continue // 네트워크 오류 등 1회 재시도
+          if (
+            err instanceof TypeError &&
+            (err.message.includes('fetch') || err.message.includes('network'))
+          ) {
+            dispatch({ type: 'generate/fail', kind: 'network' })
+          } else {
+            dispatch({ type: 'generate/fail', kind: 'generic' })
+          }
+          return
+        }
+      }
+    }
+
+    fetchQuestionsWithRetry()
+
+    return () => {
+      window.clearTimeout(timerStage1)
+      window.clearTimeout(timerStage2)
+      window.clearTimeout(timerTimeout)
+      controller.abort()
+    }
+  }, [state.phase, state.loadingFrozen, parsed.used, state.difficulty])
+
+  const shareText = useMemo(() => buildShareText(state), [state])
 
   const handleCopy = useCallback(async () => {
     try {

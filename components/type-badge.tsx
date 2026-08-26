@@ -15,7 +15,7 @@ const TYPE_STYLE: Record<
     className: 'bg-card text-accent-foreground border-primary/40',
     Icon: Ruler,
   },
-  prepconj: {
+  prep_conj: {
     className: 'bg-primary-soft text-accent-foreground border-transparent',
     Icon: Link2,
   },

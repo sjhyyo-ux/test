@@ -71,7 +71,7 @@ export type QuizAction =
   | { type: 'generate/start' }
   | { type: 'loading/stage'; stage: LoadingStage }
   | { type: 'loading/cancel' }
-  | { type: 'generate/success' }
+  | { type: 'generate/success'; questions?: Question[] }
   | { type: 'generate/fail'; kind: ErrorKind }
   | { type: 'quiz/answer'; key: ChoiceKey }
   | { type: 'quiz/next' }
@@ -117,7 +117,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
       }
 
     case 'generate/success': {
-      const questions = QUESTION_SETS[state.setKey]
+      const questions = action.questions || QUESTION_SETS[state.setKey]
       return {
         ...state,
         phase: 'quiz',

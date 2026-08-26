@@ -9,8 +9,8 @@ import { TypeBadge } from '@/components/type-badge'
 import { BLANK_TOKEN, type ChoiceKey, type Question } from '@/lib/quiz-types'
 
 /** 빈칸을 한눈에 보이도록 지문을 쪼개어 렌더 */
-function Sentence({ sentence }: { sentence: string }) {
-  const parts = sentence.split(BLANK_TOKEN)
+function Sentence({ stem }: { stem: string }) {
+  const parts = stem.split(BLANK_TOKEN)
 
   return (
     <p className="font-serif text-passage text-foreground text-pretty">
@@ -53,7 +53,7 @@ export function QuestionCard({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* E5: 문항이 3개보다 적게 만들어진 경우 안내 배너 */}
+      {/* EX-4: 문항이 3개보다 적게 만들어진 경우 안내 배너 */}
       {total < 3 && (
         <div className="flex items-start gap-2 rounded-lg border border-border bg-primary-soft px-3 py-2.5">
           <Info
@@ -61,8 +61,7 @@ export function QuestionCard({
             className="mt-0.5 size-4 shrink-0 text-accent-foreground"
           />
           <p className="text-caption text-accent-foreground text-pretty">
-            이번엔 {total}문항이 만들어졌어요. 남은 단어는 다시 시도하면 더
-            만들 수 있어요.
+            이번엔 {total}문항이 만들어졌어요.
           </p>
         </div>
       )}
@@ -103,7 +102,7 @@ export function QuestionCard({
               {question.targetWord}
             </span>
           </p>
-          <Sentence sentence={question.sentence} />
+          <Sentence stem={question.stem} />
         </div>
 
         <ChoiceList

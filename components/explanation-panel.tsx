@@ -107,7 +107,7 @@ export function ExplanationPanel({
               <span className="font-serif font-semibold">
                 ({question.answer}) {answerChoice?.text}
               </span>{' '}
-              — {answerChoice?.rationale}
+              — {question.explanations[question.answer]}
             </p>
           </Block>
 
@@ -122,7 +122,7 @@ export function ExplanationPanel({
                 <span className="font-serif font-semibold">
                   ({myChoice.key}) {myChoice.text}
                 </span>{' '}
-                — {myChoice.rationale}
+                — {question.explanations[selected]}
               </p>
             </Block>
           )}
@@ -141,7 +141,7 @@ export function ExplanationPanel({
             icon={<Target aria-hidden="true" className="size-3" />}
             className="bg-primary-soft/50"
           >
-            <p className="text-pretty">{question.targetNote}</p>
+            <p className="text-pretty">{question.wordNote}</p>
           </Block>
         </div>
       )}

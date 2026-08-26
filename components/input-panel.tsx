@@ -35,7 +35,7 @@ function WordChips({ parsed }: { parsed: ParsedWords }) {
               'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-micro font-medium',
               token.status === 'used' &&
                 'border-primary/30 bg-primary-soft text-accent-foreground',
-              token.status === 'not-english' &&
+              (token.status === 'not-english' || token.status === 'duplicate') &&
                 'border-border bg-muted text-muted-foreground line-through decoration-muted-foreground/60',
               token.status === 'over-limit' &&
                 'border-dashed border-border bg-card text-muted-foreground',
@@ -49,6 +49,9 @@ function WordChips({ parsed }: { parsed: ParsedWords }) {
             <span className="font-serif">{token.raw}</span>
             {token.status === 'not-english' && (
               <span className="font-sans">· 제외</span>
+            )}
+            {token.status === 'duplicate' && (
+              <span className="font-sans">· 중복</span>
             )}
             {token.status === 'over-limit' && (
               <span className="font-sans">· 미사용</span>
