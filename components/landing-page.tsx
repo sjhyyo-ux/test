@@ -45,7 +45,7 @@ export function LandingPage() {
         <span className="text-title font-bold text-foreground">
           VocaTarget
         </span>
-        <Button render={<Link href="/app" />} size="sm">
+        <Button render={<Link href="/app" />} nativeButton={false} size="sm">
           시작하기
         </Button>
       </header>
@@ -67,6 +67,7 @@ export function LandingPage() {
           <div className="flex flex-col items-center gap-2">
             <Button
               render={<Link href="/app" />}
+              nativeButton={false}
               size="lg"
               className="h-12 px-8 text-title"
             >
@@ -134,6 +135,7 @@ export function LandingPage() {
             </h2>
             <Button
               render={<Link href="/app" />}
+              nativeButton={false}
               size="lg"
               className="h-12 px-8 text-title"
             >
