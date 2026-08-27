@@ -15,32 +15,58 @@ function stripMarkdownFences(text: string): string {
   return cleaned.trim()
 }
 
+const BUSINESS_DOMAINS = [
+  '인사/채용 (HR & Recruitment)',
+  '재무/회계 (Finance & Accounting)',
+  '고객응대 (Customer Relations)',
+  '물류/유통 (Logistics & Supply Chain)',
+  'IT/시스템 (IT & Infrastructure)',
+  '마케팅/홍보 (Marketing & Advertising)',
+  '계약/법률 (Contract & Legal Compliance)',
+  '시설/안전 (Facilities & Workplace Safety)',
+  '경영전략 (Corporate Strategy & Planning)',
+  '연구개발 (R&D & Product Launch)',
+]
+
+function getRandomDomains(): string[] {
+  const shuffled = [...BUSINESS_DOMAINS].sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, 3)
+}
+
 function buildSystemPrompt(words: string[], difficulty: Difficulty): string {
   const diffDesc =
     difficulty === 'easy'
-      ? '쉬움 (토익 600점대 수준, 기본 어휘 및 기초 문법 구조)'
+      ? '쉬움 (토익 600점대 수준: 기본 어휘, 명확한 단문 구조, 직관적인 품사 자리 문제)'
       : difficulty === 'hard'
-        ? '어려움 (토익 800점대 후반 이상 수준, 까다로운 혼동 어휘, 고급 어법 및 함정 선지)'
-        : '보통 (토익 700점대 실전 수준, 실전 빈출 문법 및 어휘)'
+        ? '어려움 (토익 800점대 후반 수준: 까다로운 비즈니스 혼동 어휘, 복합문 구조, 고급 어법 및 매력적인 함정 선지)'
+        : '보통 (토익 700점대 실전 수준: 실전 빈출 어휘 및 핵심 문법 구조)'
+
+  const assignedDomains = getRandomDomains()
 
   return `당신은 최고 수준의 토익(TOEIC) R/C Part 5 전문 출제 위원입니다.
 사용자가 입력한 취약 단어 목록: [${words.join(', ')}]
 난이도: ${diffDesc}
 
-위 취약 단어들을 반드시 지문(stem) 또는 선지(choices)에 직접 활용하여 실전 토익 Part 5 3문항 세트를 생성하세요.
+[문항별 배정 비즈니스 상황]
+- 1번 문항: ${assignedDomains[0]} 문맥
+- 2번 문항: ${assignedDomains[1]} 문맥
+- 3번 문항: ${assignedDomains[2]} 문맥
+
+위 취약 단어들의 정확한 사전적 의미와 품사(동사/명사/형용사/부사 등)를 파악하고, 각 문항에 배정된 비즈니스 상황에 완벽히 어울리는 실전 토익 Part 5 3문항 세트를 생성하세요.
 
 [핵심 출제 규칙 - 위반 절대 금지]
 0. 단어 유효성 검사: 입력된 취약 단어가 실제 영어 단어가 아니거나 무의미한 난타 문자열(예: asdfgh, qwrty, zzzzz 등)인 경우, 억지로 가짜 문제를 만들지 말고 반드시 다음 JSON 형태로만 응답하세요:
    { "error": "invalid_word", "invalidWords": ["해당단어"] }
-1. 문항 수: 반드시 정확히 3문항을 생성하세요.
-2. 문제 유형 (3문항 유형이 전부 동일하면 안 됨):
-   - 'vocab' (어휘): 최소 1문항 필수. 타깃 단어와 혼동되는 유의어/파생어 중 문맥에 맞는 것 고르기.
+1. 문맥의 자연스러움: 입력 단어가 문장 안에서 부자연스럽게 끼워 맞춰지지 않도록, 단어의 실제 뜻과 비즈니스 콜로케이션(연어 관계)을 반영한 고품질 실전문장을 작성하세요.
+2. 문항 수: 반드시 정확히 3문항을 생성하세요.
+3. 문제 유형 (3문항 유형이 전부 동일하면 안 됨):
+   - 'vocab' (어휘): 최소 1문항 필수. 타깃 단어와 문맥상 경쟁하는 실제 유효한 토익 빈출 유의어/혼동어 3개를 오답으로 구성.
    - 'grammar' (어법) 또는 'prep_conj' (전치사·접속사): 최소 1문항 필수.
    - 3문항의 유형이 전부 동일한 것은 절대 금지입니다 (최소 2개 이상 유형 혼합).
-3. 지문(stem): 빈칸은 반드시 '_____' (밑줄 5개) 토큰으로 표기하세요.
-4. 선지(choices): 정확히 4개 ('A', 'B', 'C', 'D')로 구성하며, 정답은 단 하나만 성립해야 합니다.
-5. 해설(explanations): 4개 선지 각각에 대한 한글 해설을 모두 작성하세요 (정답 선지는 정답 근거, 오답 3개는 각 오답이 틀린 구체적 이유).
-6. 한글 해석(translation) 및 단어 정리(wordNote): 각 문항마다 충실하게 작성하세요.
+4. 지문(stem): 빈칸은 반드시 '_____' (밑줄 5개) 토큰으로 표기하세요.
+5. 선지(choices): 정확히 4개 ('A', 'B', 'C', 'D')로 구성하며, 오답 선지는 절대로 가짜 단어가 아닌 실제 존재하는 영어 단어여야 합니다. 정답은 문맥상 오직 하나만 성립해야 합니다.
+6. 해설(explanations): 4개 선지 각각에 대한 한글 해설을 모두 작성하세요 (정답 선지는 정답 근거, 오답 3개는 각 오답이 틀린 구체적 문법/문맥 이유).
+7. 한글 해석(translation) 및 단어 정리(wordNote): 각 문항마다 충실하게 작성하세요.
 
 [반환 형식]
 반드시 다음 JSON 스키마를 준수하는 순수 JSON 배열만 출력하세요 (마크다운 설명문 금지):
@@ -58,9 +84,9 @@ function buildSystemPrompt(words: string[], difficulty: Difficulty): string {
     ],
     "answer": "A",
     "explanations": {
-      "A": "to부정사 뒤에는 동사원형이 와야 하므로 implement가 정답입니다.",
+      "A": "to부정사 뒤 동사원형 자리로 implement가 정답입니다.",
       "B": "명사이므로 to 뒤에 바로 올 수 없습니다.",
-      "C": "현재분사/동명사는 to부정사 구조에 맞지 않습니다.",
+      "C": "동명사는 to부정사 목적어 구조에 맞지 않습니다.",
       "D": "과거분사는 올 수 없습니다."
     },
     "translation": "회사는 새로운 정책을 시행하기로 결정했다.",
@@ -69,77 +95,232 @@ function buildSystemPrompt(words: string[], difficulty: Difficulty): string {
 ]`
 }
 
+type PartOfSpeech = 'verb' | 'noun' | 'adjective' | 'adverb' | 'prep_conj'
+
+function guessPartOfSpeech(word: string): PartOfSpeech {
+  const lower = word.toLowerCase().trim()
+  const PREP_CONJ_WORDS = new Set([
+    'despite', 'although', 'because', 'during', 'since', 'unless', 'without',
+    'regarding', 'concerning', 'throughout', 'while', 'whereas', 'besides', 'upon',
+  ])
+  if (PREP_CONJ_WORDS.has(lower)) return 'prep_conj'
+  if (lower.endsWith('ly')) return 'adverb'
+  if (
+    lower.endsWith('tion') ||
+    lower.endsWith('sion') ||
+    lower.endsWith('ment') ||
+    lower.endsWith('ance') ||
+    lower.endsWith('ence') ||
+    lower.endsWith('ity') ||
+    lower.endsWith('ness')
+  ) {
+    return 'noun'
+  }
+  if (
+    lower.endsWith('able') ||
+    lower.endsWith('ible') ||
+    lower.endsWith('ive') ||
+    lower.endsWith('al') ||
+    lower.endsWith('ous') ||
+    lower.endsWith('ful') ||
+    lower.endsWith('ic')
+  ) {
+    return 'adjective'
+  }
+  if (
+    lower.endsWith('ate') ||
+    lower.endsWith('ize') ||
+    lower.endsWith('ise') ||
+    lower.endsWith('ify')
+  ) {
+    return 'verb'
+  }
+  return 'verb'
+}
+
 /**
- * API 키가 없을 때 동작하는 지능형 개발용 폴백 생성기
+ * API 키가 없을 때 동작하는 품사/문맥 추론 기반 지능형 다이나믹 Mock 생성기
  */
 function createFallbackQuestions(words: string[], difficulty: Difficulty): Question[] {
   const w1 = words[0] || 'comprehensive'
   const w2 = words[1] || w1
-  const w3 = words[2] || w1
+  const w3 = words[2] || (words[0] === w2 ? 'strictly' : w1)
+
+  const pos1 = guessPartOfSpeech(w1)
+  const pos2 = guessPartOfSpeech(w2)
+
+  // 1번 문항: 어휘(vocab) - 비즈니스 시나리오 다양화
+  const vocabTemplates = [
+    {
+      stem: `Due to recent regulatory changes, the compliance officer emphasized the need to _____ ${w1} in all operational procedures.`,
+      targetWord: w1,
+      choices: [
+        { key: 'A', text: w1 },
+        { key: 'B', text: 'postpone' },
+        { key: 'C', text: 'eliminate' },
+        { key: 'D', text: 'overlook' },
+      ],
+      answer: 'A' as const,
+      explanations: {
+        A: `문맥상 규정 준수를 위해 업무 절차에서 '${w1}'의 의미가 가장 자연스럽게 어울립니다.`,
+        B: 'postpone(연기하다)은 규정 준수 강화 문맥의 긍정적 논리에 맞지 않습니다.',
+        C: 'eliminate(제거하다)는 운영 절차 적용 문맥에 부적절합니다.',
+        D: 'overlook(간과하다, 눈감아주다)은 반대 의미의 오답입니다.',
+      },
+      translation: `최근 규정 변경으로 인해 준법감시인은 모든 운영 절차에서 ${w1}의 필요성을 강조했다.`,
+      wordNote: `${w1} = 토익 실전 빈출 어휘. 비즈니스 규정 및 운영 문맥에서의 핵심 의미를 숙지하세요.`,
+    },
+    {
+      stem: `The regional director presented a _____ proposal regarding ${w1} to the board of directors this morning.`,
+      targetWord: w1,
+      choices: [
+        { key: 'A', text: w1 },
+        { key: 'B', text: 'reluctant' },
+        { key: 'C', text: 'temporary' },
+        { key: 'D', text: 'tentative' },
+      ],
+      answer: 'A' as const,
+      explanations: {
+        A: `이사회에 제출된 제안서의 성격을 나타내는 적절한 어휘로 '${w1}'이 가장 적합합니다.`,
+        B: 'reluctant(꺼리는)는 제안서를 수식하기에 어색합니다.',
+        C: 'temporary(일시적인)는 정식 이사회 안건 문맥에 덜 적합합니다.',
+        D: 'tentative(잠정적인)보다 문맥상 완성도 높은 제안을 나타내는 정답이 적절합니다.',
+      },
+      translation: `지역 총괄 이사는 오늘 아침 이사회에 ${w1}에 관한 제안서를 발표했다.`,
+      wordNote: `${w1} = 제안서(proposal), 보고서(report) 등과 자주 호응하는 핵심 토익 표현입니다.`,
+    },
+    {
+      stem: `Our marketing department is actively seeking innovative ways to _____ ${w1} across emerging global markets.`,
+      targetWord: w1,
+      choices: [
+        { key: 'A', text: w1 },
+        { key: 'B', text: 'terminate' },
+        { key: 'C', text: 'restrict' },
+        { key: 'D', text: 'hesitate' },
+      ],
+      answer: 'A' as const,
+      explanations: {
+        A: `신흥 글로벌 시장 공략 문맥에서 '${w1}'의 활용이 가장 타당합니다.`,
+        B: 'terminate(종료하다)는 적극적 마케팅 확장 취지에 반합니다.',
+        C: 'restrict(제한하다)는 부정적 의미로 문맥상 부적절합니다.',
+        D: 'hesitate(망설이다)는 자동사로 목적어를 바로 취할 수 없습니다.',
+      },
+      translation: `우리 마케팅 부서는 신흥 글로벌 시장에서 ${w1}을(를) 달성하기 위한 혁신적인 방안을 적극 모색하고 있다.`,
+      wordNote: `${w1} = 비즈니스 확장 및 전략 수립 파트 5 빈출 단어입니다.`,
+    },
+  ]
+
+  const selectedVocab = vocabTemplates[Math.floor(Math.random() * vocabTemplates.length)]
+
+  // 2번 문항: 어법(grammar) - 형태 변형 및 문법 구조 문제
+  const grammarStemBase = w2.replace(/(ing|ed|tion|ment|able|ive|ly)$/i, '')
+  const nounForm = `${grammarStemBase}tion`
+  const adjForm = `${grammarStemBase}able`
+  const advForm = `${grammarStemBase}ly`
+  const verbForm = grammarStemBase
+
+  const grammarTemplates = [
+    {
+      stem: `The technical support team conducted the quarterly system maintenance _____ to minimize user disruption.`,
+      targetWord: w2,
+      choices: [
+        { key: 'A', text: advForm },
+        { key: 'B', text: verbForm },
+        { key: 'C', text: nounForm },
+        { key: 'D', text: adjForm },
+      ],
+      answer: 'A' as const,
+      explanations: {
+        A: `완전한 절(conducted the maintenance) 뒤에서 동사구를 수식하는 부사 자리이므로 ${advForm}가 정답입니다.`,
+        B: '동사원형은 이미 본동사 conducted가 있으므로 위치할 수 없습니다.',
+        C: '명사는 목적어 뒤에 불필요하게 겹치므로 오답입니다.',
+        D: '형용사는 동사구를 수식할 수 없습니다.',
+      },
+      translation: `기술 지원팀은 사용자 불편을 최소화하기 위해 분기별 시스템 점검을 철저하게 수행했다.`,
+      wordNote: `${w2}의 품사 변형 = 문장의 필수 성분(S+V+O)이 완벽할 때 빈칸은 부사(-ly) 자리입니다.`,
+    },
+    {
+      stem: `All employees who wish to participate in the seminar must obtain managerial _____ before the deadline.`,
+      targetWord: w2,
+      choices: [
+        { key: 'A', text: nounForm },
+        { key: 'B', text: verbForm },
+        { key: 'C', text: advForm },
+        { key: 'D', text: adjForm },
+      ],
+      answer: 'A' as const,
+      explanations: {
+        A: `형용사 managerial의 수식을 받는 타동사 obtain의 목적어 자리이므로 명사(${nounForm})가 정답입니다.`,
+        B: '동사원형은 타동사의 목적어 자리에 올 수 없습니다.',
+        C: '부사는 명사 자리에 올 수 없습니다.',
+        D: '형용사는 목적어 역할을 단독으로 할 수 없습니다.',
+      },
+      translation: `세미나 참가를 희망하는 모든 직원은 마감일 전에 관리자의 승인을 받아야 한다.`,
+      wordNote: `형용사 + [명사 빈칸] = Part 5에서 매달 출제되는 1초 정답 공식입니다.`,
+    },
+  ]
+
+  const selectedGrammar = grammarTemplates[Math.floor(Math.random() * grammarTemplates.length)]
+
+  // 3번 문항: 전치사/접속사(prep_conj)
+  const prepConjTemplates = [
+    {
+      stem: `_____ unexpected supply chain delays, the construction project was completed within budget.`,
+      targetWord: w3,
+      choices: [
+        { key: 'A', text: 'Despite' },
+        { key: 'B', text: 'Although' },
+        { key: 'C', text: 'Even though' },
+        { key: 'D', text: 'While' },
+      ],
+      answer: 'A' as const,
+      explanations: {
+        A: '빈칸 뒤에 명사구(unexpected supply chain delays)가 오고 주절과 양보 관계이므로 전치사 Despite가 정답입니다.',
+        B: 'Although는 접속사이므로 뒤에 절(S+V)이 와야 합니다.',
+        C: 'Even though는 접속사이므로 명사구를 이끌 수 없습니다.',
+        D: 'While은 접속사이므로 뒤에 절이 와야 합니다.',
+      },
+      translation: `예상치 못한 공급망 지연에도 불구하고, 건설 프로젝트는 예산 범위 내에서 완료되었다.`,
+      wordNote: `Despite / In spite of + 명사(구) vs Although / Even though + 절(S+V) 구분이 핵심입니다.`,
+    },
+    {
+      stem: `_____ the new software update is installed, all workstations must be restarted immediately.`,
+      targetWord: w3,
+      choices: [
+        { key: 'A', text: 'Once' },
+        { key: 'B', text: 'During' },
+        { key: 'C', text: 'Despite' },
+        { key: 'D', text: 'Prior to' },
+      ],
+      answer: 'A' as const,
+      explanations: {
+        A: '빈칸 뒤에 절(the software update is installed)이 이어져 조건을 나타내는 접속사 Once(~하자마자, 일단 ~하면)가 정답입니다.',
+        B: 'During은 전치사이므로 뒤에 절이 올 수 없습니다.',
+        C: 'Despite는 전치사이므로 절을 이끌 수 없습니다.',
+        D: 'Prior to는 전치사구이므로 명사(구)와 결합해야 합니다.',
+      },
+      translation: `새 소프트웨어 업데이트가 설치되는 즉시, 모든 워크스테이션을 재부팅해야 한다.`,
+      wordNote: `Once + S + V = 일단 ~하면 (토익 빈출 조건/시간 접속사)`,
+    },
+  ]
+
+  const selectedPrepConj = prepConjTemplates[Math.floor(Math.random() * prepConjTemplates.length)]
 
   return [
     {
       id: 'q-1',
       type: 'vocab',
-      targetWord: w1,
-      stem: `The executive committee requested a _____ evaluation regarding ${w1} before the final decision.`,
-      choices: [
-        { key: 'A', text: w1 },
-        { key: 'B', text: `${w1}-looking` },
-        { key: 'C', text: `${w1}ness` },
-        { key: 'D', text: `un${w1}` },
-      ],
-      answer: 'A',
-      explanations: {
-        A: `문맥상 평가를 수식하는 가장 적절한 어휘로 '${w1}'이 올바릅니다.`,
-        B: '실제 토익에서 쓰이지 않는 어색한 복합어입니다.',
-        C: '명사 형태로 뒤의 명사 evaluation을 자연스럽게 수식할 수 없습니다.',
-        D: '문맥의 논리에 맞지 않는 반의어 형태입니다.',
-      },
-      translation: `경영위원회는 최종 결정 전에 ${w1}에 관한 면밀한 평가를 요청했다.`,
-      wordNote: `${w1} = 토익 빈출 단어. 문맥상의 의미와 수식 관계를 정확히 파악하세요.`,
+      ...selectedVocab,
     },
     {
       id: 'q-2',
       type: 'grammar',
-      targetWord: w2,
-      stem: `All employees are strongly advised to review the safety procedures _____ for better compliance.`,
-      choices: [
-        { key: 'A', text: `${w2}ly` },
-        { key: 'B', text: `${w2}` },
-        { key: 'C', text: `${w2}tion` },
-        { key: 'D', text: `${w2}able` },
-      ],
-      answer: 'A',
-      explanations: {
-        A: '동사구 review the safety procedures를 뒤에서 수식하는 부사 자리가 적절합니다.',
-        B: '원형은 이 위치에서 동사구를 적절히 수식할 수 없습니다.',
-        C: '명사 형태는 목적어 뒤에 중복으로 올 수 없습니다.',
-        D: '형용사는 동사구를 수식할 수 없습니다.',
-      },
-      translation: `모든 직원은 규정 준수를 위해 안전 절차를 ${w2}하게 검토할 것을 강력히 권고받는다.`,
-      wordNote: `${w2}의 품사 변형 = 문장 구조(동사 수식 부사 자리)를 먼저 확인하세요.`,
+      ...selectedGrammar,
     },
     {
       id: 'q-3',
       type: 'prep_conj',
-      targetWord: w3,
-      stem: `_____ the implementation of ${w3} was challenging, the overall performance improved significantly.`,
-      choices: [
-        { key: 'A', text: 'Although' },
-        { key: 'B', text: 'Despite' },
-        { key: 'C', text: 'In spite of' },
-        { key: 'D', text: 'Because of' },
-      ],
-      answer: 'A',
-      explanations: {
-        A: '빈칸 뒤에 절(the implementation was challenging)이 이어지고 주절과 양보 관계이므로 접속사 Although가 정답입니다.',
-        B: '전치사이므로 뒤에 절이 올 수 없습니다.',
-        C: '전치사구이므로 절을 이끌 수 없습니다.',
-        D: '원인을 나타내는 전치사구로 문맥과 구조에 맞지 않습니다.',
-      },
-      translation: `${w3}의 시행이 어려웠음에도 불구하고, 전반적인 성과는 크게 향상되었다.`,
-      wordNote: `빈칸 뒤가 절(S+V)이면 접속사, 명사(구)면 전치사를 고르는 것이 Part 5의 핵심입니다.`,
+      ...selectedPrepConj,
     },
   ]
 }
