@@ -25,7 +25,7 @@
 
 | 영역 | 초기 상태 (As-Is) | 최종 완료 상태 (To-Be) | 달성 여부 |
 |---|---|---|:---:|
-| **데이터 소스** | Mock 데이터 기반 시뮬레이션 | In-Memory Lexicon 고속 캐시 + Gemini 2.5 Flash / CoT 블라인드 감수관 파이프라인 (`app/api/generate/route.ts`) | ✅ 완료 |
+| **데이터 소스** | Mock 데이터 기반 시뮬레이션 | In-Memory Lexicon 고속 캐시 + Gemini 3.6 Flash / CoT 블라인드 감수관 파이프라인 (`app/api/generate/route.ts`) | ✅ 완료 |
 | **타입 & 스키마** | `Question` 인터페이스 일부 필드 불일치 | PRD §4.1 F-4 필드 명세 및 구조화 타입 100% 일치 (`lib/quiz-types.ts`) | ✅ 완료 |
 | **품질 가드레일** | 단순 문자열 정합성만 검사 | 7대 정적 품질 가드레일(R-1~R-7) + CoT 블라인드 감수관(LLM-as-Judge) 이중 방어망 구축 | ✅ 완료 |
 | **조사 처리** | "을(를)" 괄호/슬래시 방치 | 한국어 유니코드 종성(받침) 및 ㄹ 받침 자동 결합 유틸리티 탑재 (`lib/korean-josa.ts`) | ✅ 완료 |

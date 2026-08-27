@@ -47,7 +47,7 @@ console.log(`🔑 [API 키 확인] 감지된 키: ${maskedKey}`)
 
 const testWords = ['comprehensive', 'implement', 'despite']
 const difficulty = 'normal'
-const model = env.GEMINI_MODEL || 'gemini-2.5-flash'
+const model = env.GEMINI_MODEL || 'gemini-3.6-flash'
 
 console.log(`🎯 [테스트 단어] ${testWords.join(', ')} (난이도: ${difficulty})`)
 console.log(`⚡ [호출 모델] ${model}`)

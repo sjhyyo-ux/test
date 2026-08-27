@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateAndSanitizeQuestions } from '@/lib/validator'
+import { findLexiconQuestions } from '@/lib/lexicon-database'
 import type { Difficulty, Question } from '@/lib/quiz-types'
+
 
 export const dynamic = 'force-dynamic'
 
@@ -253,6 +255,20 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanWords = words.slice(0, 5).map((w: string) => String(w).trim())
+
+    // ⚡ 0ms 초고속 캐시 라우팅 (Sprint 5: In-Memory Lexicon)
+    const cachedQuestions = findLexiconQuestions(cleanWords)
+    if (cachedQuestions.length >= 3) {
+      console.log(
+        `⚡ [Cache Hit] 3 questions served from In-Memory Lexicon for words: [${cleanWords.join(', ')}]`,
+      )
+      return NextResponse.json({
+        questions: cachedQuestions.slice(0, 3),
+        isHomogeneous: false,
+        discardedCount: 0,
+      })
+    }
+
     const apiKey =
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
@@ -275,12 +291,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash'
     const maskedKey = apiKey.slice(0, 6) + '...' + apiKey.slice(-4)
     console.log(`\n======================================================`)
     console.log(`[AI Request] Target Words: [${cleanWords.join(', ')}] | Difficulty: ${difficulty}`)
     console.log(`[AI Config] Model: ${modelName} | API Key: ${maskedKey}`)
     console.log(`======================================================\n`)
+
 
     let finalQuestions: Question[] = []
     let finalRejectionReasons: string[] = []

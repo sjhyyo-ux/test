@@ -37,7 +37,7 @@
 
 ## 3. 테스트 및 빌드 검증 결과
 
-### 🧪 단위 테스트 결과 (`pnpm test` / `vitest run`)
+### 🧪 단위 테스트 결과 (`vitest run`)
 - `test/sprint-0.test.ts` (15 passed)
 - `test/sprint-1.test.ts` (4 passed)
 - `test/sprint-2-exceptions.test.ts` (35 passed)
@@ -48,9 +48,14 @@
 - `test/sprint-5-hybrid.test.ts` (4 passed)
 - 👉 **총 90/90 Tests Passed (100% 통과)**
 
+### 🤖 실시간 Live AI 생성 검증 (`node scripts/verify-gemini.mjs`)
+- 모델: **`gemini-3.6-flash`**
+- 3문항 생성 및 F-3 유형 배분, 정답 유일성, 실시간 CoT 검증 완료 (HTTP 200)
+
 ### 📊 45단어 품질 벤치마크 (`pnpm run bench`)
 - Baseline (기존 템플릿): 0.0% (45/45 기각)
 - **개선 후 파이프라인**: **100.0%** (45/45 통과)
 
-### 📦 프로덕션 빌드 결과 (`pnpm run build`)
+### 📦 프로덕션 빌드 결과 (`pnpm run build` / `next build`)
 - Next.js 16.3.3 Turbopack 프로덕션 빌드 성공 (Exit code 0).
+
