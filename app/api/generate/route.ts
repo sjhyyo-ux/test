@@ -322,6 +322,56 @@ export async function POST(req: NextRequest) {
             generationConfig: {
               responseMimeType: 'application/json',
               temperature: 0.7,
+              responseSchema: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    id: { type: 'STRING' },
+                    type: {
+                      type: 'STRING',
+                      enum: ['vocab', 'grammar', 'prep_conj'],
+                    },
+                    targetWord: { type: 'STRING' },
+                    stem: { type: 'STRING' },
+                    choices: {
+                      type: 'ARRAY',
+                      items: {
+                        type: 'OBJECT',
+                        properties: {
+                          key: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
+                          text: { type: 'STRING' },
+                        },
+                        required: ['key', 'text'],
+                      },
+                    },
+                    answer: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
+                    explanations: {
+                      type: 'OBJECT',
+                      properties: {
+                        A: { type: 'STRING' },
+                        B: { type: 'STRING' },
+                        C: { type: 'STRING' },
+                        D: { type: 'STRING' },
+                      },
+                      required: ['A', 'B', 'C', 'D'],
+                    },
+                    translation: { type: 'STRING' },
+                    wordNote: { type: 'STRING' },
+                  },
+                  required: [
+                    'id',
+                    'type',
+                    'targetWord',
+                    'stem',
+                    'choices',
+                    'answer',
+                    'explanations',
+                    'translation',
+                    'wordNote',
+                  ],
+                },
+              },
             },
           }),
         },
@@ -384,13 +434,15 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // 2단계: CoT 블라인드 감수관 (LLM Judge) 실행
-      let allJudgePassed = true
+      // 2단계: CoT 블라인드 감수관 (LLM Judge) 병렬 동시 실행 (3배 고속화)
       const candidateQuestions = validation.validQuestions.slice(0, 3)
+      const judgeResults = await Promise.all(
+        candidateQuestions.map((q) => runBlindJudge(apiKey, modelName, q)),
+      )
 
-      for (let qIdx = 0; qIdx < candidateQuestions.length; qIdx++) {
-        const q = candidateQuestions[qIdx]
-        const judgeResult = await runBlindJudge(apiKey, modelName, q)
+      let allJudgePassed = true
+      for (let qIdx = 0; qIdx < judgeResults.length; qIdx++) {
+        const judgeResult = judgeResults[qIdx]
         if (!judgeResult.pass) {
           allJudgePassed = false
           const critiqueMsg = `문항 ${qIdx + 1}: ${judgeResult.critique}`
@@ -403,11 +455,12 @@ export async function POST(req: NextRequest) {
 
       if (allJudgePassed) {
         console.log(
-          `✅ [Success] All 3 questions passed static and Judge validation on attempt ${attempt} (${elapsed}ms)!`,
+          `✅ [Success] All 3 questions passed static and Judge validation on attempt ${attempt} (${Date.now() - startTime}ms)!`,
         )
         finalQuestions = candidateQuestions
         break
       }
+
     }
 
     // 3회 시도 모두 품질 기준 통과 실패 시

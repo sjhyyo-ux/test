@@ -18,9 +18,10 @@ import {
 } from '@/lib/quiz-types'
 
 // EX-10 로딩 경과 단계 시간 설정 (ms)
-const STAGE_1_MS = 5000
-const STAGE_2_MS = 12000
-const TIMEOUT_MS = 20000
+const STAGE_1_MS = 6000
+const STAGE_2_MS = 15000
+const TIMEOUT_MS = 35000
+
 
 /** 결과 공유·복사에 쓰는 텍스트 (PRD §3.3 표준 템플릿) */
 function buildShareText(state: QuizState) {
