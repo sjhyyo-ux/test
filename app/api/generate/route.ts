@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { attachJosa } from '@/lib/korean-josa'
-import { validateAndSanitizeQuestions, validateQuestionQuality } from '@/lib/validator'
-import { findLexiconQuestions } from '@/lib/lexicon-database'
-import type { ChoiceKey, Difficulty, Question, QuestionType } from '@/lib/quiz-types'
+import { validateAndSanitizeQuestions } from '@/lib/validator'
+import type { Difficulty, Question } from '@/lib/quiz-types'
+
+export const dynamic = 'force-dynamic'
 
 function stripMarkdownFences(text: string): string {
   let cleaned = text.trim()
@@ -54,8 +54,10 @@ function buildSystemPrompt(
 
   let feedbackPrompt = ''
   if (feedbackHistory.length > 0) {
-    feedbackPrompt = `\n[⚠️ 이전 생성 실패 사유 및 공인 감수관 지적 사항 - 반드시 보정하여 출제할 것]\n` +
-      feedbackHistory.map((f, i) => `${i + 1}. ${f}`).join('\n') + '\n'
+    feedbackPrompt =
+      `\n[⚠️ 이전 생성 실패 사유 및 공인 감수관 지적 사항 - 반드시 보정하여 출제할 것]\n` +
+      feedbackHistory.map((f, i) => `${i + 1}. ${f}`).join('\n') +
+      '\n'
   }
 
   return `당신은 최고 권위의 토익(TOEIC) R/C Part 5 전문 출제 위원장입니다.
@@ -75,7 +77,7 @@ ${feedbackPrompt}
    - 지문(stem)에서 정답이 들어갈 자리는 반드시 '_____' (밑줄 정확히 5개) 토큰으로 치환하세요.
    - 빈칸 외 지문 본문에 정답 단어(또는 굴절형)가 영문으로 그대로 노출되어서는 절대 안 됩니다.
 2. 어휘 및 문맥 적합성:
-   - 단어의 실제 뜻(예: compensate = 보상하다)과 어울리지 않는 엉뚱한 문맥에 억지로 끼워 넣지 마세요.
+   - 단어의 실제 뜻과 어울리지 않는 엉뚱한 문맥에 억지로 끼워 넣지 마세요.
    - 정답 선지는 문맥상 자연스러운 유일한 정답이어야 합니다.
 3. 문제 유형 배분 (F-3):
    - 'vocab' (어휘): 최소 1문항 필수. 타깃 단어와 동일 품사인 실제 토익 빈출 유효 어휘 3개를 오답으로 구성.
@@ -234,85 +236,8 @@ async function runBlindJudge(
     return { pass: true }
   } catch (error) {
     console.warn('Judge execution error:', error)
-    return { pass: true } // 감수기 자체 오류 시 일단 통과 처리
+    return { pass: true }
   }
-}
-
-/**
- * 오프라인/개발 모드용 품사 기반 안전한 실전 Lexicon 생성기 (치환 무결성 보장)
- */
-function createSafeFallbackQuestions(words: string[], difficulty: Difficulty): Question[] {
-  const w1 = words[0] || 'compensate'
-  const w2 = words[1] || 'compliance'
-  const w3 = words[2] || 'despite'
-
-  const targetJosa = attachJosa(w1, '을/를')
-
-  return [
-    {
-      id: 'q-1',
-      type: 'vocab',
-      targetWord: w1,
-      stem: `The corporate management decided to _____ employees for additional travel expenses incurred during the business trip.`,
-      choices: [
-        { key: 'A', text: w1 },
-        { key: 'B', text: 'postpone' },
-        { key: 'C', text: 'eliminate' },
-        { key: 'D', text: 'restrict' },
-      ],
-      answer: 'A',
-      explanations: {
-        A: `전치사 for와 호응하여 출장 중 발생한 추가 경비에 대해 '보상/변상하다'라는 의미로 ${w1}이 문맥상 가장 적절합니다.`,
-        B: 'postpone(연기하다)은 추가 경비 정산 문맥에 맞지 않는 오답입니다.',
-        C: 'eliminate(제거하다)는 경비 보상 절차의 논리에 어울리지 않습니다.',
-        D: 'restrict(제한하다)는 전치사 for와 함께 쓰여 대상에게 보상을 제공하는 의미에 부적합합니다.',
-      },
-      translation: `회사 경영진은 출장 중 발생한 추가 경비에 대해 직원들에게 정당하게 보상하기로 결정했다.`,
-      wordNote: `${w1} (동사) = 보상하다, 변상하다 (compensate A for B: A에게 B에 대해 보상하다)`,
-    },
-    {
-      id: 'q-2',
-      type: 'grammar',
-      targetWord: w2,
-      stem: `All employees must strictly adhere to the safety guidelines to ensure regulatory _____ across all facilities.`,
-      choices: [
-        { key: 'A', text: 'compliance' },
-        { key: 'B', text: 'comply' },
-        { key: 'C', text: 'compliant' },
-        { key: 'D', text: 'compliantly' },
-      ],
-      answer: 'A',
-      explanations: {
-        A: '형용사 regulatory의 수식을 받는 타동사 ensure의 목적어 자리이므로 명사 compliance가 정답입니다.',
-        B: 'comply는 동사이므로 형용사 뒤 목적어 자리에 올 수 없습니다.',
-        C: 'compliant는 형용사이므로 단독 목적어 역할을 할 수 없습니다.',
-        D: 'compliantly는 부사이므로 목적어 자리에 올 수 없습니다.',
-      },
-      translation: `모든 직원은 모든 시설에서의 규정 준수를 보장하기 위해 안전 지침을 엄격히 따라야 한다.`,
-      wordNote: `compliance (명사) = (법규·지침의) 준수, 따름 (in compliance with: ~을 준수하여)`,
-    },
-    {
-      id: 'q-3',
-      type: 'prep_conj',
-      targetWord: w3,
-      stem: `_____ unexpected logistical delays, the construction team managed to complete the project on schedule.`,
-      choices: [
-        { key: 'A', text: 'Despite' },
-        { key: 'B', text: 'Although' },
-        { key: 'C', text: 'Even though' },
-        { key: 'D', text: 'While' },
-      ],
-      answer: 'A',
-      explanations: {
-        A: '빈칸 뒤에 명사구(unexpected logistical delays)가 오고 주절과 양보 관계이므로 전치사 Despite가 정답입니다.',
-        B: 'Although는 접속사이므로 뒤에 절(S+V)이 이어져야 합니다.',
-        C: 'Even though는 접속사이므로 명사구를 이끌 수 없습니다.',
-        D: 'While은 접속사이므로 명사구 앞에 위치할 수 없습니다.',
-      },
-      translation: `예상치 못한 물류 지연에도 불구하고, 건설 팀은 예정대로 프로젝트를 완수해냈다.`,
-      wordNote: `despite (전치사) = ~에도 불구하고 (despite + 명사구 vs although + 절)`,
-    },
-  ]
 }
 
 export async function POST(req: NextRequest) {
@@ -328,19 +253,6 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanWords = words.slice(0, 5).map((w: string) => String(w).trim())
-
-    // 🚀 1. 하이브리드 고속 경로: 사전 검증 문제은행(Lexicon) 0ms 즉시 조회
-    const lexiconMatched = findLexiconQuestions(cleanWords)
-    if (lexiconMatched.length >= 3) {
-      console.log('[Lexicon Hit] Serving 3 verified questions from In-Memory Lexicon (<50ms):', cleanWords)
-      return NextResponse.json({
-        questions: lexiconMatched.slice(0, 3),
-        isHomogeneous: false,
-        discardedCount: 0,
-        source: 'lexicon_cache',
-      })
-    }
-
     const apiKey =
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
@@ -348,117 +260,153 @@ export async function POST(req: NextRequest) {
       process.env.AI_API_KEY ||
       process.env.OPENAI_API_KEY
 
+    // 🚫 조용한 폴백 전면 금지: API 키가 없으면 실패를 명확히 반환
+    if (!apiKey || apiKey.trim() === '') {
+      console.error(
+        '[API Error] GEMINI_API_KEY is missing in environment variables. Live AI generation requires a valid key.',
+      )
+      return NextResponse.json(
+        {
+          error: 'api_key_missing',
+          message:
+            'Gemini API 키가 설정되지 않았습니다. .env 파일에 GEMINI_API_KEY를 설정해 주세요.',
+        },
+        { status: 500 },
+      )
+    }
+
     const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+    const maskedKey = apiKey.slice(0, 6) + '...' + apiKey.slice(-4)
+    console.log(`\n======================================================`)
+    console.log(`[AI Request] Target Words: [${cleanWords.join(', ')}] | Difficulty: ${difficulty}`)
+    console.log(`[AI Config] Model: ${modelName} | API Key: ${maskedKey}`)
+    console.log(`======================================================\n`)
 
     let finalQuestions: Question[] = []
     let finalRejectionReasons: string[] = []
 
-    if (apiKey) {
-      // 🔁 최대 3회 생성 및 검증/피드백 루프 (A, B, C 반영)
-      const MAX_RETRIES = 3
-      const feedbackHistory: string[] = []
+    // 🔁 최대 3회 생성 및 검증/피드백 루프
+    const MAX_RETRIES = 3
+    const feedbackHistory: string[] = []
 
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        console.log(`[AI Generation] Attempt ${attempt}/${MAX_RETRIES} for words:`, cleanWords)
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const startTime = Date.now()
+      console.log(`🚀 [Attempt ${attempt}/${MAX_RETRIES}] Requesting generation from ${modelName}...`)
 
-        const prompt = buildSystemPrompt(cleanWords, difficulty as Difficulty, feedbackHistory)
+      const prompt = buildSystemPrompt(cleanWords, difficulty as Difficulty, feedbackHistory)
 
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.7,
-              },
-            }),
-          },
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.7,
+            },
+          }),
+        },
+      )
+
+      const elapsed = Date.now() - startTime
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`❌ [Attempt ${attempt}] HTTP ${response.status} (${elapsed}ms):`, errorText)
+        if (response.status === 429) {
+          return NextResponse.json({ error: 'busy' }, { status: 429 })
+        }
+        if (attempt === MAX_RETRIES) {
+          return NextResponse.json(
+            { error: 'ai_error', message: `AI 호출 실패: HTTP ${response.status}` },
+            { status: 502 },
+          )
+        }
+        feedbackHistory.push(`API 호출 오류: HTTP ${response.status}`)
+        continue
+      }
+
+      const aiData = await response.json()
+      const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      const cleaned = stripMarkdownFences(rawText)
+      console.log(`📥 [Attempt ${attempt}] Raw response received in ${elapsed}ms. Parsing JSON...`)
+
+      let parsedList: unknown[] = []
+      try {
+        const parsed = JSON.parse(cleaned)
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed) &&
+          parsed.error === 'invalid_word'
+        ) {
+          console.warn('⚠️ [Attempt', attempt, '] Invalid word detected by AI prompt:', parsed)
+          return NextResponse.json(
+            { error: 'invalid_word', invalidWords: parsed.invalidWords || cleanWords },
+            { status: 422 },
+          )
+        }
+        parsedList = Array.isArray(parsed) ? parsed : parsed.questions || []
+      } catch (parseErr) {
+        console.error('❌ [Attempt', attempt, '] JSON parsing failed:', parseErr, cleaned)
+        feedbackHistory.push('JSON 형식이 깨졌습니다. 순수 JSON 배열 스키마를 엄격히 준수하세요.')
+        continue
+      }
+
+      // 1단계: 7대 정적 품질 검증 엔진 (R-1 ~ R-7)
+      const validation = validateAndSanitizeQuestions(parsedList, cleanWords)
+      if (validation.validQuestions.length < 3) {
+        console.warn(
+          `⚠️ [Attempt ${attempt}] Static validation failed:`,
+          validation.rejectionReasons,
         )
+        feedbackHistory.push(...validation.rejectionReasons)
+        finalRejectionReasons = validation.rejectionReasons
+        continue
+      }
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error(`AI API call failed (Attempt ${attempt}):`, response.status, errorText)
-          if (response.status === 429) {
-            return NextResponse.json({ error: 'busy' }, { status: 429 })
-          }
-          if (attempt === MAX_RETRIES) {
-            return NextResponse.json({ error: 'ai_error' }, { status: 502 })
-          }
-          feedbackHistory.push(`API 호출 오류: HTTP ${response.status}`)
-          continue
-        }
+      // 2단계: CoT 블라인드 감수관 (LLM Judge) 실행
+      let allJudgePassed = true
+      const candidateQuestions = validation.validQuestions.slice(0, 3)
 
-        const aiData = await response.json()
-        const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-        const cleaned = stripMarkdownFences(rawText)
-
-        let parsedList: unknown[] = []
-        try {
-          const parsed = JSON.parse(cleaned)
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.error === 'invalid_word') {
-            return NextResponse.json(
-              { error: 'invalid_word', invalidWords: parsed.invalidWords || cleanWords },
-              { status: 422 },
-            )
-          }
-          parsedList = Array.isArray(parsed) ? parsed : parsed.questions || []
-        } catch (parseErr) {
-          console.error('JSON parsing failed on attempt', attempt, parseErr)
-          feedbackHistory.push('JSON 형식이 깨졌습니다. 순수 JSON 배열 스키마를 엄격히 준수하세요.')
-          continue
-        }
-
-        // 1단계: 7대 정적 품질 검증 엔진 (R-1 ~ R-7)
-        const validation = validateAndSanitizeQuestions(parsedList, cleanWords)
-        if (validation.validQuestions.length < 3) {
-          console.warn(`[Quality Reject] Attempt ${attempt} failed static validation:`, validation.rejectionReasons)
-          feedbackHistory.push(...validation.rejectionReasons)
-          finalRejectionReasons = validation.rejectionReasons
-          continue
-        }
-
-        // 2단계: CoT 블라인드 감수관(LLM Judge) 실행 (C1, C2)
-        let allJudgePassed = true
-        const candidateQuestions = validation.validQuestions.slice(0, 3)
-
-        for (let qIdx = 0; qIdx < candidateQuestions.length; qIdx++) {
-          const q = candidateQuestions[qIdx]
-          const judgeResult = await runBlindJudge(apiKey, modelName, q)
-          if (!judgeResult.pass) {
-            allJudgePassed = false
-            const critiqueMsg = `문항 ${qIdx + 1}: ${judgeResult.critique}`
-            console.warn(`[Judge Reject] Attempt ${attempt}:`, critiqueMsg)
-            feedbackHistory.push(critiqueMsg)
-            finalRejectionReasons.push(critiqueMsg)
-            break
-          }
-        }
-
-        if (allJudgePassed) {
-          console.log(`[Success] All 3 questions passed static and Judge validation on attempt ${attempt}!`)
-          finalQuestions = candidateQuestions
+      for (let qIdx = 0; qIdx < candidateQuestions.length; qIdx++) {
+        const q = candidateQuestions[qIdx]
+        const judgeResult = await runBlindJudge(apiKey, modelName, q)
+        if (!judgeResult.pass) {
+          allJudgePassed = false
+          const critiqueMsg = `문항 ${qIdx + 1}: ${judgeResult.critique}`
+          console.warn(`⚠️ [Judge Rejection on Attempt ${attempt}]:`, critiqueMsg)
+          feedbackHistory.push(critiqueMsg)
+          finalRejectionReasons.push(critiqueMsg)
           break
         }
       }
 
-      // 3회 시도 모두 품질 기준 통과 실패 시
-      if (finalQuestions.length === 0) {
-        console.error('[Final Rejection] 3 attempts exhausted without meeting quality standards.')
-        return NextResponse.json(
-          {
-            error: 'generation_quality',
-            reasons: finalRejectionReasons,
-            retryable: true,
-          },
-          { status: 422 },
+      if (allJudgePassed) {
+        console.log(
+          `✅ [Success] All 3 questions passed static and Judge validation on attempt ${attempt} (${elapsed}ms)!`,
         )
+        finalQuestions = candidateQuestions
+        break
       }
-    } else {
-      // API Key가 없을 때: 안전한 Lexicon Mock 실행
-      finalQuestions = createSafeFallbackQuestions(cleanWords, difficulty as Difficulty)
+    }
+
+    // 3회 시도 모두 품질 기준 통과 실패 시
+    if (finalQuestions.length === 0) {
+      console.error(
+        '❌ [Final Rejection] 3 attempts exhausted without meeting quality standards:',
+        finalRejectionReasons,
+      )
+      return NextResponse.json(
+        {
+          error: 'generation_quality',
+          reasons: finalRejectionReasons,
+          retryable: true,
+        },
+        { status: 422 },
+      )
     }
 
     return NextResponse.json({
@@ -467,7 +415,7 @@ export async function POST(req: NextRequest) {
       discardedCount: 0,
     })
   } catch (error) {
-    console.error('Unexpected server error in generate route:', error)
+    console.error('❌ Unexpected server error in generate route:', error)
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }

@@ -10,6 +10,7 @@ export type ErrorKind =
   | 'timeout'
   | 'invalid_word'
   | 'generation_quality'
+  | 'api_key_missing'
 
 /** 로딩 경과 단계: 0=0~5초, 1=5~12초, 2=12~20초 */
 export type LoadingStage = 0 | 1 | 2
@@ -45,6 +46,7 @@ export const ERROR_MESSAGE: Record<ErrorKind, string> = {
   timeout: '시간이 너무 오래 걸려서 중단했어요. 다시 시도해 주세요.',
   invalid_word: '입력하신 단어 중 실제 영단어가 아닌 단어가 있어요. 단어를 확인해 주세요.',
   generation_quality: '실전 토익 공인 시험 기준의 엄격한 품질 검증을 통과하지 못했습니다. 단어를 수정하거나 다시 시도해 주세요.',
+  api_key_missing: 'Gemini API 키가 설정되지 않았어요. .env 파일에 GEMINI_API_KEY를 설정해 주세요.',
 }
 
 export const initialState: QuizState = {

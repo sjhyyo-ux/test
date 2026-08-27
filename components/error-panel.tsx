@@ -13,6 +13,7 @@ const ERROR_SUB: Record<ErrorKind, string> = {
   timeout: '난이도를 낮추거나 단어 수를 줄이면 더 빨라요.',
   invalid_word: '스펠링을 확인하거나 다른 영단어를 입력해 보세요.',
   generation_quality: '단어를 변경하거나 다시 시도해 보세요. (단어와 난이도는 보존됩니다)',
+  api_key_missing: '.env 파일에 GEMINI_API_KEY=AIzaSy... 형태로 키를 입력하고 저장해 주세요.',
 }
 
 export function ErrorPanel({

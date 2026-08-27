@@ -108,6 +108,13 @@ export function QuizApp() {
                 return
               }
             }
+            if (res.status === 500) {
+              const errData = await res.json().catch(() => ({}))
+              if (errData.error === 'api_key_missing') {
+                dispatch({ type: 'generate/fail', kind: 'api_key_missing' })
+                return
+              }
+            }
             if (res.status === 429) {
               if (attempt === 0) continue // 1회 재시도
               dispatch({ type: 'generate/fail', kind: 'busy' })
