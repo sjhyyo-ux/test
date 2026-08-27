@@ -16,6 +16,21 @@ export interface Choice {
   text: string
 }
 
+export interface StructuredWordNote {
+  word: string
+  pos: string
+  koreanMeaning: string
+  collocations: [string, string] | string[]
+}
+
+export interface StructuredExplanationItem {
+  koreanMeaning?: string
+  clue?: string
+  reason: string
+}
+
+export type StructuredExplanations = Record<ChoiceKey, StructuredExplanationItem | string>
+
 export interface Question {
   id: string
   type: QuestionType

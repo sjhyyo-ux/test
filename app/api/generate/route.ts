@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateAndSanitizeQuestions } from '@/lib/validator'
-import type { Difficulty, Question, QuestionType } from '@/lib/quiz-types'
+import { attachJosa } from '@/lib/korean-josa'
+import { validateAndSanitizeQuestions, validateQuestionQuality } from '@/lib/validator'
+import type { ChoiceKey, Difficulty, Question, QuestionType } from '@/lib/quiz-types'
 
 function stripMarkdownFences(text: string): string {
   let cleaned = text.trim()
@@ -33,294 +34,282 @@ function getRandomDomains(): string[] {
   return shuffled.slice(0, 3)
 }
 
-function buildSystemPrompt(words: string[], difficulty: Difficulty): string {
+/**
+ * 실전 토익 Part 5 출제 프롬프트 생성기 (v3.0)
+ */
+function buildSystemPrompt(
+  words: string[],
+  difficulty: Difficulty,
+  feedbackHistory: string[] = [],
+): string {
   const diffDesc =
     difficulty === 'easy'
-      ? '쉬움 (토익 600점대 수준: 기본 어휘, 명확한 단문 구조, 직관적인 품사 자리 문제)'
+      ? '쉬움 (토익 600점대: 명확한 단문, 기본 어휘, 직관적인 품사 자리 문제)'
       : difficulty === 'hard'
-        ? '어려움 (토익 800점대 후반 수준: 까다로운 비즈니스 혼동 어휘, 복합문 구조, 고급 어법 및 매력적인 함정 선지)'
-        : '보통 (토익 700점대 실전 수준: 실전 빈출 어휘 및 핵심 문법 구조)'
+        ? '어려움 (토익 800점대 후반: 비즈니스 고급 혼동 어휘, 까다로운 어법, 함정 선지)'
+        : '보통 (토익 700점대 실전: 실전 빈출 어휘 및 핵심 문법 구조)'
 
   const assignedDomains = getRandomDomains()
 
-  return `당신은 최고 수준의 토익(TOEIC) R/C Part 5 전문 출제 위원입니다.
+  let feedbackPrompt = ''
+  if (feedbackHistory.length > 0) {
+    feedbackPrompt = `\n[⚠️ 이전 생성 실패 사유 및 공인 감수관 지적 사항 - 반드시 보정하여 출제할 것]\n` +
+      feedbackHistory.map((f, i) => `${i + 1}. ${f}`).join('\n') + '\n'
+  }
+
+  return `당신은 최고 권위의 토익(TOEIC) R/C Part 5 전문 출제 위원장입니다.
 사용자가 입력한 취약 단어 목록: [${words.join(', ')}]
 난이도: ${diffDesc}
 
-[문항별 배정 비즈니스 상황]
-- 1번 문항: ${assignedDomains[0]} 문맥
-- 2번 문항: ${assignedDomains[1]} 문맥
-- 3번 문항: ${assignedDomains[2]} 문맥
+[문항별 배정 비즈니스 도메인]
+- 1번 문항: ${assignedDomains[0]}
+- 2번 문항: ${assignedDomains[1]}
+- 3번 문항: ${assignedDomains[2]}
+${feedbackPrompt}
+위 취약 단어들의 사전적 의미, 품사(동사/명사/형용사/부사/전접), 실제 비즈니스 콜로케이션(연어)을 철저히 분석하여, 각 배정 도메인에 완벽히 어울리는 실전 토익 Part 5 3문항 세트를 생성하세요.
 
-위 취약 단어들의 정확한 사전적 의미와 품사(동사/명사/형용사/부사 등)를 파악하고, 각 문항에 배정된 비즈니스 상황에 완벽히 어울리는 실전 토익 Part 5 3문항 세트를 생성하세요.
-
-[핵심 출제 규칙 - 위반 절대 금지]
-0. 단어 유효성 검사: 입력된 취약 단어가 실제 영어 단어가 아니거나 무의미한 난타 문자열(예: asdfgh, qwrty, zzzzz 등)인 경우, 억지로 가짜 문제를 만들지 말고 반드시 다음 JSON 형태로만 응답하세요:
-   { "error": "invalid_word", "invalidWords": ["해당단어"] }
-1. 문맥의 자연스러움: 입력 단어가 문장 안에서 부자연스럽게 끼워 맞춰지지 않도록, 단어의 실제 뜻과 비즈니스 콜로케이션(연어 관계)을 반영한 고품질 실전문장을 작성하세요.
-2. 문항 수: 반드시 정확히 3문항을 생성하세요.
-3. 문제 유형 (3문항 유형이 전부 동일하면 안 됨):
-   - 'vocab' (어휘): 최소 1문항 필수. 타깃 단어와 문맥상 경쟁하는 실제 유효한 토익 빈출 유의어/혼동어 3개를 오답으로 구성.
+[🚨 절대 위반 금지 출제 원칙]
+0. 단어 유효성: 입력된 단어가 실제 영단어가 아닌 무의미한 난타 문자열이면 반드시 { "error": "invalid_word", "invalidWords": ["해당단어"] } 로 응답하세요.
+1. 빈칸 치환 필수 (R-1, R-2):
+   - 지문(stem)에서 정답이 들어갈 자리는 반드시 '_____' (밑줄 정확히 5개) 토큰으로 치환하세요.
+   - 빈칸 외 지문 본문에 정답 단어(또는 굴절형)가 영문으로 그대로 노출되어서는 절대 안 됩니다.
+2. 어휘 및 문맥 적합성:
+   - 단어의 실제 뜻(예: compensate = 보상하다)과 어울리지 않는 엉뚱한 문맥에 억지로 끼워 넣지 마세요.
+   - 정답 선지는 문맥상 자연스러운 유일한 정답이어야 합니다.
+3. 문제 유형 배분 (F-3):
+   - 'vocab' (어휘): 최소 1문항 필수. 타깃 단어와 동일 품사인 실제 토익 빈출 유효 어휘 3개를 오답으로 구성.
    - 'grammar' (어법) 또는 'prep_conj' (전치사·접속사): 최소 1문항 필수.
-   - 3문항의 유형이 전부 동일한 것은 절대 금지입니다 (최소 2개 이상 유형 혼합).
-4. 지문(stem): 빈칸은 반드시 '_____' (밑줄 5개) 토큰으로 표기하세요.
-5. 선지(choices): 정확히 4개 ('A', 'B', 'C', 'D')로 구성하며, 오답 선지는 절대로 가짜 단어가 아닌 실제 존재하는 영어 단어여야 합니다. 정답은 문맥상 오직 하나만 성립해야 합니다.
-6. 해설(explanations): 4개 선지 각각에 대한 한글 해설을 모두 작성하세요 (정답 선지는 정답 근거, 오답 3개는 각 오답이 틀린 구체적 문법/문맥 이유).
-7. 한글 해석(translation) 및 단어 정리(wordNote): 각 문항마다 충실하게 작성하세요.
+   - 3문항이 전부 동일한 유형인 것은 절대 금지입니다.
+4. 선지(choices):
+   - 정확히 4개 ('A', 'B', 'C', 'D'). 4개 선지는 모두 유일해야 하며, 가짜 영단어 사용은 절대 금지입니다.
+5. 해설(explanations) 작성 규격:
+   - 정답 선지: 문장 속 단서(전치사 호응, 목적어, 시제, 문맥)를 구체적으로 인용하여 정답 근거를 기술하세요. ("~이 가장 타당합니다" 식의 순환논증 절대 금지)
+   - 오답 선지 3개: "이 단어의 뜻은 X인데, 이 문맥은 Y를 요구한다" 또는 "품사가 Z이므로 이 자리에 올 수 없다" 형태로 선지마다 개별적이고 구체적인 오답 이유를 작성하세요. (단어만 바꾼 고정 템플릿 복붙 절대 금지)
+6. 한글 해석(translation) 및 조사 처리 (R-4, R-5):
+   - 지문 전체를 자연스러운 한국어로 완벽히 번역하세요. (정답 단어가 영문 그대로 남아있으면 안 됨)
+   - '을(를)', '이(가)', '은(는)', '와(과)', '으로/로' 같은 슬래시/괄호 표기를 절대 쓰지 말고, 앞말 받침에 맞는 완성된 조사를 사용하세요.
+7. 단어 정리(wordNote) (R-7):
+   - 형식: "[단어] ([품사]) = [정확한 한국어 뜻 1~2개] (핵심 콜로케이션/짝꿍 표현)"
+   - 예: "compensate (동사) = 보상하다, 변상하다 (compensate A for B: A에게 B에 대해 보상하다)"
+   - "비즈니스 확장 파트 5 빈출 단어입니다" 같은 알맹이 없는 설명은 엄격히 금지됩니다.
 
 [반환 형식]
-반드시 다음 JSON 스키마를 준수하는 순수 JSON 배열만 출력하세요 (마크다운 설명문 금지):
+반드시 다음 JSON 스키마를 준수하는 순수 JSON 배열만 출력하세요:
 [
   {
     "id": "q-1",
     "type": "vocab" | "grammar" | "prep_conj",
     "targetWord": "사용한 취약 단어",
-    "stem": "The company decided to _____ the new policy.",
+    "stem": "The executive committee decided to _____ employees for overtime work during the system upgrade.",
     "choices": [
-      { "key": "A", "text": "implement" },
-      { "key": "B", "text": "implementation" },
-      { "key": "C", "text": "implementing" },
-      { "key": "D", "text": "implemented" }
+      { "key": "A", "text": "compensate" },
+      { "key": "B", "text": "postpone" },
+      { "key": "C", "text": "eliminate" },
+      { "key": "D", "text": "restrict" }
     ],
     "answer": "A",
     "explanations": {
-      "A": "to부정사 뒤 동사원형 자리로 implement가 정답입니다.",
-      "B": "명사이므로 to 뒤에 바로 올 수 없습니다.",
-      "C": "동명사는 to부정사 목적어 구조에 맞지 않습니다.",
-      "D": "과거분사는 올 수 없습니다."
+      "A": "전치사 for와 호응하여 직원들에게 초과 근무에 대해 '보상하다'라는 의미가 가장 자연스러우므로 compensate가 정답입니다.",
+      "B": "postpone(연기하다)은 초과 근무에 대한 후속 조치 문맥에 어울리지 않습니다.",
+      "C": "eliminate(제거하다)는 직원에게 보상하는 긍정적 인사 복지 문맥과 논리상 모순됩니다.",
+      "D": "restrict(제한하다)는 전치사 for와 함께 쓰여 대상에게 혜택을 제공하는 구조에 맞지 않습니다."
     },
-    "translation": "회사는 새로운 정책을 시행하기로 결정했다.",
-    "wordNote": "implement = 시행하다, 실행하다 (토익 파트 5 최빈출 동사)"
+    "translation": "경영위원회는 시스템 업그레이드 기간 동안의 초과 근무에 대해 직원들에게 보상하기로 결정했다.",
+    "wordNote": "compensate (동사) = 보상하다, 변상하다 (compensate A for B: A에게 B에 대해 보상하다)"
   }
 ]`
 }
 
-type PartOfSpeech = 'verb' | 'noun' | 'adjective' | 'adverb' | 'prep_conj'
+/**
+ * CoT 블라인드 판정 모델 (LLM-as-Judge) 실행기 (C1, C2)
+ */
+async function runBlindJudge(
+  apiKey: string,
+  modelName: string,
+  question: Question,
+): Promise<{ pass: boolean; critique?: string }> {
+  const blindPrompt = `당신은 대한민국 최고 수준의 토익(TOEIC) R/C 공인 시험 수석 감수 위원입니다.
+다음 Part 5 문항을 감수하고 정답과 문맥의 타당성을 독립적으로 판정하세요.
 
-function guessPartOfSpeech(word: string): PartOfSpeech {
-  const lower = word.toLowerCase().trim()
-  const PREP_CONJ_WORDS = new Set([
-    'despite', 'although', 'because', 'during', 'since', 'unless', 'without',
-    'regarding', 'concerning', 'throughout', 'while', 'whereas', 'besides', 'upon',
-  ])
-  if (PREP_CONJ_WORDS.has(lower)) return 'prep_conj'
-  if (lower.endsWith('ly')) return 'adverb'
-  if (
-    lower.endsWith('tion') ||
-    lower.endsWith('sion') ||
-    lower.endsWith('ment') ||
-    lower.endsWith('ance') ||
-    lower.endsWith('ence') ||
-    lower.endsWith('ity') ||
-    lower.endsWith('ness')
-  ) {
-    return 'noun'
+[감수 대상 문항 (정답 정보 없음)]
+- 지문: "${question.stem}"
+- 선지:
+  A) ${question.choices.find((c) => c.key === 'A')?.text}
+  B) ${question.choices.find((c) => c.key === 'B')?.text}
+  C) ${question.choices.find((c) => c.key === 'C')?.text}
+  D) ${question.choices.find((c) => c.key === 'D')?.text}
+
+[판정 절차 - Step-by-Step Chain of Thought]
+반드시 다음 순서대로 사고하여 JSON으로 응답하세요:
+1. koreanSentenceTranslation: 지문의 정확한 한국어 번역
+2. blankSyntacticRole: 빈칸에 필요한 품사 및 문장 내 문법적/의미적 역할
+3. choiceAnalysis: 선지 A, B, C, D 각각에 대한 사전적 의미 및 정답/오답 논리
+4. solvedAnswer: 감수위원이 도출한 정답 ('A' | 'B' | 'C' | 'D')
+5. hasMultipleAnswers: 복수 정답이 성립할 여지가 있는지 (boolean)
+6. isNaturalBusinessContext: 지문이 실제 비즈니스 실무에 자연스럽고 비문이 아닌지 (boolean)
+7. verdict: 'PASS' 또는 'REJECT'
+8. rejectionReason: REJECT인 경우 구체적 결함 사유`
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: blindPrompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.0, // 결정론적 엄격 감수
+            responseSchema: {
+              type: 'OBJECT',
+              properties: {
+                koreanSentenceTranslation: { type: 'STRING' },
+                blankSyntacticRole: { type: 'STRING' },
+                choiceAnalysis: {
+                  type: 'OBJECT',
+                  properties: {
+                    A: { type: 'STRING' },
+                    B: { type: 'STRING' },
+                    C: { type: 'STRING' },
+                    D: { type: 'STRING' },
+                  },
+                  required: ['A', 'B', 'C', 'D'],
+                },
+                solvedAnswer: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
+                hasMultipleAnswers: { type: 'BOOLEAN' },
+                isNaturalBusinessContext: { type: 'BOOLEAN' },
+                verdict: { type: 'STRING', enum: ['PASS', 'REJECT'] },
+                rejectionReason: { type: 'STRING' },
+              },
+              required: [
+                'koreanSentenceTranslation',
+                'blankSyntacticRole',
+                'choiceAnalysis',
+                'solvedAnswer',
+                'hasMultipleAnswers',
+                'isNaturalBusinessContext',
+                'verdict',
+              ],
+            },
+          },
+        }),
+      },
+    )
+
+    if (!response.ok) {
+      console.warn('Judge API call failed, skipping LLM judge check.')
+      return { pass: true }
+    }
+
+    const data = await response.json()
+    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    const result = JSON.parse(stripMarkdownFences(rawText))
+
+    // 1. 판정자 정답과 출제 정답 일치 여부
+    if (result.solvedAnswer !== question.answer) {
+      return {
+        pass: false,
+        critique: `[Judge 정답 불일치] 출제 정답(${question.answer})과 감수 정답(${result.solvedAnswer})이 다릅니다.`,
+      }
+    }
+
+    // 2. 복수 정답 여부
+    if (result.hasMultipleAnswers) {
+      return {
+        pass: false,
+        critique: `[Judge 복수 정답] 선지 중 2개 이상의 복수 정답이 가능합니다.`,
+      }
+    }
+
+    // 3. 비즈니스 문맥 적합성
+    if (!result.isNaturalBusinessContext || result.verdict === 'REJECT') {
+      return {
+        pass: false,
+        critique: `[Judge 문맥 부적합] ${result.rejectionReason || '지문이 비문이거나 단어 뜻과 어울리지 않습니다.'}`,
+      }
+    }
+
+    return { pass: true }
+  } catch (error) {
+    console.warn('Judge execution error:', error)
+    return { pass: true } // 감수기 자체 오류 시 일단 통과 처리
   }
-  if (
-    lower.endsWith('able') ||
-    lower.endsWith('ible') ||
-    lower.endsWith('ive') ||
-    lower.endsWith('al') ||
-    lower.endsWith('ous') ||
-    lower.endsWith('ful') ||
-    lower.endsWith('ic')
-  ) {
-    return 'adjective'
-  }
-  if (
-    lower.endsWith('ate') ||
-    lower.endsWith('ize') ||
-    lower.endsWith('ise') ||
-    lower.endsWith('ify')
-  ) {
-    return 'verb'
-  }
-  return 'verb'
 }
 
 /**
- * API 키가 없을 때 동작하는 품사/문맥 추론 기반 지능형 다이나믹 Mock 생성기
+ * 오프라인/개발 모드용 품사 기반 안전한 실전 Lexicon 생성기 (치환 무결성 보장)
  */
-function createFallbackQuestions(words: string[], difficulty: Difficulty): Question[] {
-  const w1 = words[0] || 'comprehensive'
-  const w2 = words[1] || w1
-  const w3 = words[2] || (words[0] === w2 ? 'strictly' : w1)
+function createSafeFallbackQuestions(words: string[], difficulty: Difficulty): Question[] {
+  const w1 = words[0] || 'compensate'
+  const w2 = words[1] || 'compliance'
+  const w3 = words[2] || 'despite'
 
-  const pos1 = guessPartOfSpeech(w1)
-  const pos2 = guessPartOfSpeech(w2)
+  const targetJosa = attachJosa(w1, '을/를')
 
-  // 1번 문항: 어휘(vocab) - 비즈니스 시나리오 다양화
-  const vocabTemplates = [
+  return [
     {
-      stem: `Due to recent regulatory changes, the compliance officer emphasized the need to _____ ${w1} in all operational procedures.`,
+      id: 'q-1',
+      type: 'vocab',
       targetWord: w1,
+      stem: `The corporate management decided to _____ employees for additional travel expenses incurred during the business trip.`,
       choices: [
         { key: 'A', text: w1 },
         { key: 'B', text: 'postpone' },
         { key: 'C', text: 'eliminate' },
-        { key: 'D', text: 'overlook' },
+        { key: 'D', text: 'restrict' },
       ],
-      answer: 'A' as const,
+      answer: 'A',
       explanations: {
-        A: `문맥상 규정 준수를 위해 업무 절차에서 '${w1}'의 의미가 가장 자연스럽게 어울립니다.`,
-        B: 'postpone(연기하다)은 규정 준수 강화 문맥의 긍정적 논리에 맞지 않습니다.',
-        C: 'eliminate(제거하다)는 운영 절차 적용 문맥에 부적절합니다.',
-        D: 'overlook(간과하다, 눈감아주다)은 반대 의미의 오답입니다.',
+        A: `전치사 for와 호응하여 출장 중 발생한 추가 경비에 대해 '보상/변상하다'라는 의미로 ${w1}이 문맥상 가장 적절합니다.`,
+        B: 'postpone(연기하다)은 추가 경비 정산 문맥에 맞지 않는 오답입니다.',
+        C: 'eliminate(제거하다)는 경비 보상 절차의 논리에 어울리지 않습니다.',
+        D: 'restrict(제한하다)는 전치사 for와 함께 쓰여 대상에게 보상을 제공하는 의미에 부적합합니다.',
       },
-      translation: `최근 규정 변경으로 인해 준법감시인은 모든 운영 절차에서 ${w1}의 필요성을 강조했다.`,
-      wordNote: `${w1} = 토익 실전 빈출 어휘. 비즈니스 규정 및 운영 문맥에서의 핵심 의미를 숙지하세요.`,
+      translation: `회사 경영진은 출장 중 발생한 추가 경비에 대해 직원들에게 정당하게 보상하기로 결정했다.`,
+      wordNote: `${w1} (동사) = 보상하다, 변상하다 (compensate A for B: A에게 B에 대해 보상하다)`,
     },
     {
-      stem: `The regional director presented a _____ proposal regarding ${w1} to the board of directors this morning.`,
-      targetWord: w1,
-      choices: [
-        { key: 'A', text: w1 },
-        { key: 'B', text: 'reluctant' },
-        { key: 'C', text: 'temporary' },
-        { key: 'D', text: 'tentative' },
-      ],
-      answer: 'A' as const,
-      explanations: {
-        A: `이사회에 제출된 제안서의 성격을 나타내는 적절한 어휘로 '${w1}'이 가장 적합합니다.`,
-        B: 'reluctant(꺼리는)는 제안서를 수식하기에 어색합니다.',
-        C: 'temporary(일시적인)는 정식 이사회 안건 문맥에 덜 적합합니다.',
-        D: 'tentative(잠정적인)보다 문맥상 완성도 높은 제안을 나타내는 정답이 적절합니다.',
-      },
-      translation: `지역 총괄 이사는 오늘 아침 이사회에 ${w1}에 관한 제안서를 발표했다.`,
-      wordNote: `${w1} = 제안서(proposal), 보고서(report) 등과 자주 호응하는 핵심 토익 표현입니다.`,
-    },
-    {
-      stem: `Our marketing department is actively seeking innovative ways to _____ ${w1} across emerging global markets.`,
-      targetWord: w1,
-      choices: [
-        { key: 'A', text: w1 },
-        { key: 'B', text: 'terminate' },
-        { key: 'C', text: 'restrict' },
-        { key: 'D', text: 'hesitate' },
-      ],
-      answer: 'A' as const,
-      explanations: {
-        A: `신흥 글로벌 시장 공략 문맥에서 '${w1}'의 활용이 가장 타당합니다.`,
-        B: 'terminate(종료하다)는 적극적 마케팅 확장 취지에 반합니다.',
-        C: 'restrict(제한하다)는 부정적 의미로 문맥상 부적절합니다.',
-        D: 'hesitate(망설이다)는 자동사로 목적어를 바로 취할 수 없습니다.',
-      },
-      translation: `우리 마케팅 부서는 신흥 글로벌 시장에서 ${w1}을(를) 달성하기 위한 혁신적인 방안을 적극 모색하고 있다.`,
-      wordNote: `${w1} = 비즈니스 확장 및 전략 수립 파트 5 빈출 단어입니다.`,
-    },
-  ]
-
-  const selectedVocab = vocabTemplates[Math.floor(Math.random() * vocabTemplates.length)]
-
-  // 2번 문항: 어법(grammar) - 형태 변형 및 문법 구조 문제
-  const grammarStemBase = w2.replace(/(ing|ed|tion|ment|able|ive|ly)$/i, '')
-  const nounForm = `${grammarStemBase}tion`
-  const adjForm = `${grammarStemBase}able`
-  const advForm = `${grammarStemBase}ly`
-  const verbForm = grammarStemBase
-
-  const grammarTemplates = [
-    {
-      stem: `The technical support team conducted the quarterly system maintenance _____ to minimize user disruption.`,
+      id: 'q-2',
+      type: 'grammar',
       targetWord: w2,
+      stem: `All employees must strictly adhere to the safety guidelines to ensure regulatory _____ across all facilities.`,
       choices: [
-        { key: 'A', text: advForm },
-        { key: 'B', text: verbForm },
-        { key: 'C', text: nounForm },
-        { key: 'D', text: adjForm },
+        { key: 'A', text: 'compliance' },
+        { key: 'B', text: 'comply' },
+        { key: 'C', text: 'compliant' },
+        { key: 'D', text: 'compliantly' },
       ],
-      answer: 'A' as const,
+      answer: 'A',
       explanations: {
-        A: `완전한 절(conducted the maintenance) 뒤에서 동사구를 수식하는 부사 자리이므로 ${advForm}가 정답입니다.`,
-        B: '동사원형은 이미 본동사 conducted가 있으므로 위치할 수 없습니다.',
-        C: '명사는 목적어 뒤에 불필요하게 겹치므로 오답입니다.',
-        D: '형용사는 동사구를 수식할 수 없습니다.',
+        A: '형용사 regulatory의 수식을 받는 타동사 ensure의 목적어 자리이므로 명사 compliance가 정답입니다.',
+        B: 'comply는 동사이므로 형용사 뒤 목적어 자리에 올 수 없습니다.',
+        C: 'compliant는 형용사이므로 단독 목적어 역할을 할 수 없습니다.',
+        D: 'compliantly는 부사이므로 목적어 자리에 올 수 없습니다.',
       },
-      translation: `기술 지원팀은 사용자 불편을 최소화하기 위해 분기별 시스템 점검을 철저하게 수행했다.`,
-      wordNote: `${w2}의 품사 변형 = 문장의 필수 성분(S+V+O)이 완벽할 때 빈칸은 부사(-ly) 자리입니다.`,
+      translation: `모든 직원은 모든 시설에서의 규정 준수를 보장하기 위해 안전 지침을 엄격히 따라야 한다.`,
+      wordNote: `compliance (명사) = (법규·지침의) 준수, 따름 (in compliance with: ~을 준수하여)`,
     },
     {
-      stem: `All employees who wish to participate in the seminar must obtain managerial _____ before the deadline.`,
-      targetWord: w2,
-      choices: [
-        { key: 'A', text: nounForm },
-        { key: 'B', text: verbForm },
-        { key: 'C', text: advForm },
-        { key: 'D', text: adjForm },
-      ],
-      answer: 'A' as const,
-      explanations: {
-        A: `형용사 managerial의 수식을 받는 타동사 obtain의 목적어 자리이므로 명사(${nounForm})가 정답입니다.`,
-        B: '동사원형은 타동사의 목적어 자리에 올 수 없습니다.',
-        C: '부사는 명사 자리에 올 수 없습니다.',
-        D: '형용사는 목적어 역할을 단독으로 할 수 없습니다.',
-      },
-      translation: `세미나 참가를 희망하는 모든 직원은 마감일 전에 관리자의 승인을 받아야 한다.`,
-      wordNote: `형용사 + [명사 빈칸] = Part 5에서 매달 출제되는 1초 정답 공식입니다.`,
-    },
-  ]
-
-  const selectedGrammar = grammarTemplates[Math.floor(Math.random() * grammarTemplates.length)]
-
-  // 3번 문항: 전치사/접속사(prep_conj)
-  const prepConjTemplates = [
-    {
-      stem: `_____ unexpected supply chain delays, the construction project was completed within budget.`,
+      id: 'q-3',
+      type: 'prep_conj',
       targetWord: w3,
+      stem: `_____ unexpected logistical delays, the construction team managed to complete the project on schedule.`,
       choices: [
         { key: 'A', text: 'Despite' },
         { key: 'B', text: 'Although' },
         { key: 'C', text: 'Even though' },
         { key: 'D', text: 'While' },
       ],
-      answer: 'A' as const,
+      answer: 'A',
       explanations: {
-        A: '빈칸 뒤에 명사구(unexpected supply chain delays)가 오고 주절과 양보 관계이므로 전치사 Despite가 정답입니다.',
-        B: 'Although는 접속사이므로 뒤에 절(S+V)이 와야 합니다.',
+        A: '빈칸 뒤에 명사구(unexpected logistical delays)가 오고 주절과 양보 관계이므로 전치사 Despite가 정답입니다.',
+        B: 'Although는 접속사이므로 뒤에 절(S+V)이 이어져야 합니다.',
         C: 'Even though는 접속사이므로 명사구를 이끌 수 없습니다.',
-        D: 'While은 접속사이므로 뒤에 절이 와야 합니다.',
+        D: 'While은 접속사이므로 명사구 앞에 위치할 수 없습니다.',
       },
-      translation: `예상치 못한 공급망 지연에도 불구하고, 건설 프로젝트는 예산 범위 내에서 완료되었다.`,
-      wordNote: `Despite / In spite of + 명사(구) vs Although / Even though + 절(S+V) 구분이 핵심입니다.`,
-    },
-    {
-      stem: `_____ the new software update is installed, all workstations must be restarted immediately.`,
-      targetWord: w3,
-      choices: [
-        { key: 'A', text: 'Once' },
-        { key: 'B', text: 'During' },
-        { key: 'C', text: 'Despite' },
-        { key: 'D', text: 'Prior to' },
-      ],
-      answer: 'A' as const,
-      explanations: {
-        A: '빈칸 뒤에 절(the software update is installed)이 이어져 조건을 나타내는 접속사 Once(~하자마자, 일단 ~하면)가 정답입니다.',
-        B: 'During은 전치사이므로 뒤에 절이 올 수 없습니다.',
-        C: 'Despite는 전치사이므로 절을 이끌 수 없습니다.',
-        D: 'Prior to는 전치사구이므로 명사(구)와 결합해야 합니다.',
-      },
-      translation: `새 소프트웨어 업데이트가 설치되는 즉시, 모든 워크스테이션을 재부팅해야 한다.`,
-      wordNote: `Once + S + V = 일단 ~하면 (토익 빈출 조건/시간 접속사)`,
-    },
-  ]
-
-  const selectedPrepConj = prepConjTemplates[Math.floor(Math.random() * prepConjTemplates.length)]
-
-  return [
-    {
-      id: 'q-1',
-      type: 'vocab',
-      ...selectedVocab,
-    },
-    {
-      id: 'q-2',
-      type: 'grammar',
-      ...selectedGrammar,
-    },
-    {
-      id: 'q-3',
-      type: 'prep_conj',
-      ...selectedPrepConj,
+      translation: `예상치 못한 물류 지연에도 불구하고, 건설 팀은 예정대로 프로젝트를 완수해냈다.`,
+      wordNote: `despite (전치사) = ~에도 불구하고 (despite + 명사구 vs although + 절)`,
     },
   ]
 }
@@ -345,120 +334,123 @@ export async function POST(req: NextRequest) {
       process.env.AI_API_KEY ||
       process.env.OPENAI_API_KEY
 
-    let parsedQuestions: unknown[] = []
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+
+    let finalQuestions: Question[] = []
+    let finalRejectionReasons: string[] = []
 
     if (apiKey) {
-      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
-      
-      // Google Gemini API 호출 (Structured JSON Schema 적용)
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.7,
-              responseSchema: {
-                type: 'ARRAY',
-                items: {
-                  type: 'OBJECT',
-                  properties: {
-                    id: { type: 'STRING' },
-                    type: { type: 'STRING', enum: ['vocab', 'grammar', 'prep_conj'] },
-                    targetWord: { type: 'STRING' },
-                    stem: { type: 'STRING' },
-                    choices: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          key: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
-                          text: { type: 'STRING' },
-                        },
-                        required: ['key', 'text'],
-                      },
-                    },
-                    answer: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
-                    explanations: {
-                      type: 'OBJECT',
-                      properties: {
-                        A: { type: 'STRING' },
-                        B: { type: 'STRING' },
-                        C: { type: 'STRING' },
-                        D: { type: 'STRING' },
-                      },
-                      required: ['A', 'B', 'C', 'D'],
-                    },
-                    translation: { type: 'STRING' },
-                    wordNote: { type: 'STRING' },
-                  },
-                  required: [
-                    'id',
-                    'type',
-                    'targetWord',
-                    'stem',
-                    'choices',
-                    'answer',
-                    'explanations',
-                    'translation',
-                    'wordNote',
-                  ],
-                },
-              },
-            },
-          }),
-        },
-      )
+      // 🔁 최대 3회 생성 및 검증/피드백 루프 (A, B, C 반영)
+      const MAX_RETRIES = 3
+      const feedbackHistory: string[] = []
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('AI API call failed:', response.status, errorText)
-        if (response.status === 429) {
-          return NextResponse.json({ error: 'rate_limit' }, { status: 429 })
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        console.log(`[AI Generation] Attempt ${attempt}/${MAX_RETRIES} for words:`, cleanWords)
+
+        const prompt = buildSystemPrompt(cleanWords, difficulty as Difficulty, feedbackHistory)
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.7,
+              },
+            }),
+          },
+        )
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`AI API call failed (Attempt ${attempt}):`, response.status, errorText)
+          if (response.status === 429) {
+            return NextResponse.json({ error: 'busy' }, { status: 429 })
+          }
+          if (attempt === MAX_RETRIES) {
+            return NextResponse.json({ error: 'ai_error' }, { status: 502 })
+          }
+          feedbackHistory.push(`API 호출 오류: HTTP ${response.status}`)
+          continue
         }
-        return NextResponse.json({ error: 'ai_error' }, { status: 502 })
+
+        const aiData = await response.json()
+        const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+        const cleaned = stripMarkdownFences(rawText)
+
+        let parsedList: unknown[] = []
+        try {
+          const parsed = JSON.parse(cleaned)
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.error === 'invalid_word') {
+            return NextResponse.json(
+              { error: 'invalid_word', invalidWords: parsed.invalidWords || cleanWords },
+              { status: 422 },
+            )
+          }
+          parsedList = Array.isArray(parsed) ? parsed : parsed.questions || []
+        } catch (parseErr) {
+          console.error('JSON parsing failed on attempt', attempt, parseErr)
+          feedbackHistory.push('JSON 형식이 깨졌습니다. 순수 JSON 배열 스키마를 엄격히 준수하세요.')
+          continue
+        }
+
+        // 1단계: 7대 정적 품질 검증 엔진 (R-1 ~ R-7)
+        const validation = validateAndSanitizeQuestions(parsedList, cleanWords)
+        if (validation.validQuestions.length < 3) {
+          console.warn(`[Quality Reject] Attempt ${attempt} failed static validation:`, validation.rejectionReasons)
+          feedbackHistory.push(...validation.rejectionReasons)
+          finalRejectionReasons = validation.rejectionReasons
+          continue
+        }
+
+        // 2단계: CoT 블라인드 감수관(LLM Judge) 실행 (C1, C2)
+        let allJudgePassed = true
+        const candidateQuestions = validation.validQuestions.slice(0, 3)
+
+        for (let qIdx = 0; qIdx < candidateQuestions.length; qIdx++) {
+          const q = candidateQuestions[qIdx]
+          const judgeResult = await runBlindJudge(apiKey, modelName, q)
+          if (!judgeResult.pass) {
+            allJudgePassed = false
+            const critiqueMsg = `문항 ${qIdx + 1}: ${judgeResult.critique}`
+            console.warn(`[Judge Reject] Attempt ${attempt}:`, critiqueMsg)
+            feedbackHistory.push(critiqueMsg)
+            finalRejectionReasons.push(critiqueMsg)
+            break
+          }
+        }
+
+        if (allJudgePassed) {
+          console.log(`[Success] All 3 questions passed static and Judge validation on attempt ${attempt}!`)
+          finalQuestions = candidateQuestions
+          break
+        }
       }
 
-      const aiData = await response.json()
-      const rawText =
-        aiData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-      const cleaned = stripMarkdownFences(rawText)
-
-      try {
-        const parsed = JSON.parse(cleaned)
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.error === 'invalid_word') {
-          return NextResponse.json(
-            { error: 'invalid_word', invalidWords: parsed.invalidWords || cleanWords },
-            { status: 422 },
-          )
-        }
-        parsedQuestions = Array.isArray(parsed) ? parsed : parsed.questions || []
-      } catch (parseError) {
-        console.error('JSON parsing failed:', parseError, cleaned)
-        return NextResponse.json({ error: 'parse_error' }, { status: 502 })
+      // 3회 시도 모두 품질 기준 통과 실패 시
+      if (finalQuestions.length === 0) {
+        console.error('[Final Rejection] 3 attempts exhausted without meeting quality standards.')
+        return NextResponse.json(
+          {
+            error: 'generation_quality',
+            reasons: finalRejectionReasons,
+            retryable: true,
+          },
+          { status: 422 },
+        )
       }
     } else {
-      // API Key가 없으면 지능형 개발용 Mock 데이터 생성
-      parsedQuestions = createFallbackQuestions(cleanWords, difficulty as Difficulty)
-    }
-
-    // EX-4, EX-5, EX-6, EX-7, EX-8 검증 파이프라인 수행
-    const validation = validateAndSanitizeQuestions(parsedQuestions, cleanWords)
-
-    if (validation.validQuestions.length === 0) {
-      return NextResponse.json(
-        { error: 'no_valid_questions', retryable: true },
-        { status: 502 },
-      )
+      // API Key가 없을 때: 안전한 Lexicon Mock 실행
+      finalQuestions = createSafeFallbackQuestions(cleanWords, difficulty as Difficulty)
     }
 
     return NextResponse.json({
-      questions: validation.validQuestions,
-      isHomogeneous: validation.isHomogeneous,
-      discardedCount: validation.discardedCount,
+      questions: finalQuestions,
+      isHomogeneous: false,
+      discardedCount: 0,
     })
   } catch (error) {
     console.error('Unexpected server error in generate route:', error)

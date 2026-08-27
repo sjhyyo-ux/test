@@ -2,9 +2,75 @@
 
 import { useState } from 'react'
 import { ChevronDown, SlidersHorizontal } from 'lucide-react'
-import { QUESTION_SETS, type QuizState } from '@/lib/quiz-reducer'
-import type { ChoiceKey } from '@/lib/quiz-types'
+import type { QuizState } from '@/lib/quiz-reducer'
+import type { ChoiceKey, Question } from '@/lib/quiz-types'
 import { cn } from '@/lib/utils'
+
+const DEV_PREVIEW_QUESTIONS: Question[] = [
+  {
+    id: 'q-dev-1',
+    type: 'vocab',
+    targetWord: 'compensate',
+    stem: 'The company decided to _____ employees for additional travel expenses.',
+    choices: [
+      { key: 'A', text: 'compensate' },
+      { key: 'B', text: 'postpone' },
+      { key: 'C', text: 'eliminate' },
+      { key: 'D', text: 'restrict' },
+    ],
+    answer: 'A',
+    explanations: {
+      A: '출장 경비에 대해 보상한다는 의미로 compensate가 정답입니다.',
+      B: 'postpone은 연기하다의 뜻입니다.',
+      C: 'eliminate는 제거하다의 뜻입니다.',
+      D: 'restrict는 제한하다의 뜻입니다.',
+    },
+    translation: '회사는 추가 출장 경비에 대해 직원들에게 보상하기로 결정했다.',
+    wordNote: 'compensate (동사) = 보상하다 (compensate A for B)',
+  },
+  {
+    id: 'q-dev-2',
+    type: 'grammar',
+    targetWord: 'compliance',
+    stem: 'All employees must ensure regulatory _____ across all facilities.',
+    choices: [
+      { key: 'A', text: 'compliance' },
+      { key: 'B', text: 'comply' },
+      { key: 'C', text: 'compliant' },
+      { key: 'D', text: 'compliantly' },
+    ],
+    answer: 'A',
+    explanations: {
+      A: '타동사 ensure의 목적어 자리이므로 명사 compliance가 정답입니다.',
+      B: '동사원형입니다.',
+      C: '형용사입니다.',
+      D: '부사입니다.',
+    },
+    translation: '모든 직원은 모든 시설에서 규정 준수를 보장해야 한다.',
+    wordNote: 'compliance (명사) = 준수',
+  },
+  {
+    id: 'q-dev-3',
+    type: 'prep_conj',
+    targetWord: 'despite',
+    stem: '_____ unexpected logistical delays, the project was completed on schedule.',
+    choices: [
+      { key: 'A', text: 'Despite' },
+      { key: 'B', text: 'Although' },
+      { key: 'C', text: 'Even though' },
+      { key: 'D', text: 'While' },
+    ],
+    answer: 'A',
+    explanations: {
+      A: '명사구를 이끄는 양보 전치사 Despite가 정답입니다.',
+      B: '접속사입니다.',
+      C: '접속사입니다.',
+      D: '접속사입니다.',
+    },
+    translation: '예상치 못한 물류 지연에도 불구하고 프로젝트는 예정대로 완료되었다.',
+    wordNote: 'despite (전치사) = ~에도 불구하고',
+  },
+]
 
 interface Scenario {
   id: string
@@ -13,14 +79,13 @@ interface Scenario {
 }
 
 /** 정답이 아닌 첫 번째 선지 키 */
-function wrongKeyOf(state: QuizState, index: number) {
-  const questions = QUESTION_SETS[state.setKey]
+function wrongKeyOf(questions: Question[], index: number) {
   const question = questions[index]
   return question.choices.find((choice) => choice.key !== question.answer)!.key
 }
 
 function quizPatch(state: QuizState, index: number): Partial<QuizState> {
-  const questions = QUESTION_SETS[state.setKey]
+  const questions = state.questions.length > 0 ? state.questions : DEV_PREVIEW_QUESTIONS
   const safeIndex = Math.min(index, questions.length - 1)
   return {
     phase: 'quiz',
@@ -33,14 +98,13 @@ function quizPatch(state: QuizState, index: number): Partial<QuizState> {
 }
 
 function resultPatch(state: QuizState): Partial<QuizState> {
-  const questions = QUESTION_SETS[state.setKey]
-  // 마지막 문항만 오답으로 채워 정오표가 섞여 보이게 한다
+  const questions = state.questions.length > 0 ? state.questions : DEV_PREVIEW_QUESTIONS
   return {
     phase: 'result',
     questions,
     answers: questions.map((question, index) =>
       index === questions.length - 1
-        ? wrongKeyOf(state, index)
+        ? wrongKeyOf(questions, index)
         : question.answer,
     ),
     shareFallback: false,

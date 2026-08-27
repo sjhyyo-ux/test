@@ -97,7 +97,7 @@ describe('Sprint 2: PRD §6.2 35개 예외 검증 케이스 전수 테스트 (EX
       id: 'q-1',
       type: 'vocab',
       targetWord: 'comprehensive',
-      stem: 'The comprehensive report is ready.',
+      stem: 'The committee delivered a _____ report before the meeting.',
       choices: [
         { key: 'A', text: 'comprehensive' },
         { key: 'B', text: 'comprehensively' },
@@ -105,9 +105,14 @@ describe('Sprint 2: PRD §6.2 35개 예외 검증 케이스 전수 테스트 (EX
         { key: 'D', text: 'comprehension' },
       ],
       answer: 'A',
-      explanations: { A: 'expA', B: 'expB', C: 'expC', D: 'expD' },
-      translation: '종합 보고서가 준비되었다.',
-      wordNote: 'comprehensive = 포괄적인',
+      explanations: {
+        A: '명사 report를 수식하는 형용사 자리이므로 comprehensive가 정답입니다.',
+        B: '부사는 명사를 직접 수식할 수 없습니다.',
+        C: '동사원형은 관사 뒤에 위치할 수 없습니다.',
+        D: '명사 중복 수식은 문맥상 어색합니다.',
+      },
+      translation: '위원회는 회의 전에 포괄적인 보고서를 제출했다.',
+      wordNote: 'comprehensive (형용사) = 포괄적인, 종합적인',
     }
 
     it('11. 0개 수신 시 validQuestions는 0개여야 한다', () => {

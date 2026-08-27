@@ -103,6 +103,10 @@ export function QuizApp() {
                 dispatch({ type: 'generate/fail', kind: 'invalid_word' })
                 return
               }
+              if (errData.error === 'generation_quality') {
+                dispatch({ type: 'generate/fail', kind: 'generation_quality' })
+                return
+              }
             }
             if (res.status === 429) {
               if (attempt === 0) continue // 1회 재시도

@@ -11,6 +11,8 @@ const ERROR_SUB: Record<ErrorKind, string> = {
   busy: '보통 30초 뒤에는 다시 만들 수 있어요.',
   network: '연결이 돌아오면 같은 조건으로 다시 만들어 드려요.',
   timeout: '난이도를 낮추거나 단어 수를 줄이면 더 빨라요.',
+  invalid_word: '스펠링을 확인하거나 다른 영단어를 입력해 보세요.',
+  generation_quality: '단어를 변경하거나 다시 시도해 보세요. (단어와 난이도는 보존됩니다)',
 }
 
 export function ErrorPanel({

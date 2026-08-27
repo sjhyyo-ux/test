@@ -1,13 +1,15 @@
-// 화면 전체의 표시 상태를 하나의 reducer로 관리한다.
-// 라우팅 없이 phase 값만 바꿔서 A / A-1 / B / C 및 예외 화면을 전환한다.
-
-import { THREE_QUESTION_SET, TWO_QUESTION_SET } from './mock-questions'
 import type { ChoiceKey, Difficulty, Question } from './quiz-types'
 
 export type Phase = 'input' | 'loading' | 'quiz' | 'result' | 'error'
 
 /** 실패 사유별 문구 (기술 용어는 절대 노출하지 않는다) */
-export type ErrorKind = 'generic' | 'busy' | 'network' | 'timeout' | 'invalid_word'
+export type ErrorKind =
+  | 'generic'
+  | 'busy'
+  | 'network'
+  | 'timeout'
+  | 'invalid_word'
+  | 'generation_quality'
 
 /** 로딩 경과 단계: 0=0~5초, 1=5~12초, 2=12~20초 */
 export type LoadingStage = 0 | 1 | 2
@@ -36,17 +38,13 @@ export interface QuizState {
   focusToken: number
 }
 
-export const QUESTION_SETS: Record<SetKey, Question[]> = {
-  three: THREE_QUESTION_SET,
-  two: TWO_QUESTION_SET,
-}
-
 export const ERROR_MESSAGE: Record<ErrorKind, string> = {
   generic: '문제를 만들지 못했어요. 다시 시도해 주세요.',
   busy: '지금은 요청이 많아요. 잠시 후 다시 시도해 주세요.',
   network: '인터넷 연결을 확인해 주세요.',
   timeout: '시간이 너무 오래 걸려서 중단했어요. 다시 시도해 주세요.',
   invalid_word: '입력하신 단어 중 실제 영단어가 아닌 단어가 있어요. 단어를 확인해 주세요.',
+  generation_quality: '실전 토익 공인 시험 기준의 엄격한 품질 검증을 통과하지 못했습니다. 단어를 수정하거나 다시 시도해 주세요.',
 }
 
 export const initialState: QuizState = {
@@ -118,7 +116,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
       }
 
     case 'generate/success': {
-      const questions = action.questions || QUESTION_SETS[state.setKey]
+      const questions = action.questions || []
       return {
         ...state,
         phase: 'quiz',
