@@ -166,15 +166,27 @@ export function QuizApp() {
   }, [shareText])
 
   const handleShare = useCallback(async () => {
-    if (typeof navigator !== 'undefined' && navigator.share) {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({ title: '토익 문제 결과', text: shareText })
         return
-      } catch {
-        // 사용자가 취소했거나 공유가 실패한 경우 → 폴백
+      } catch (err: unknown) {
+        // 사용자가 공유 시트를 취소(AbortError)한 경우 아무 동작도 하지 않음 (EX-11)
+        if (err instanceof Error && err.name === 'AbortError') {
+          return
+        }
+        // 기타 공유 오류인 경우 클립보드 복사 대체로 이동
       }
     }
-    dispatch({ type: 'share/fallback' })
+
+    // 공유 미지원 환경 또는 실패 시 자동으로 클립보드 복사로 대체 (EX-11)
+    try {
+      await navigator.clipboard.writeText(shareText)
+      dispatch({ type: 'toast/show', message: '복사했어요!' })
+    } catch {
+      // 클립보드도 차단된 경우 화면에 수동 복사 텍스트 영역 표시 (EX-11)
+      dispatch({ type: 'share/fallback' })
+    }
   }, [shareText])
 
   const showInput = state.phase === 'input' || state.phase === 'loading'
