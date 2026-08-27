@@ -1,6 +1,6 @@
 # 취약 단어 타겟형 토익 문제 생성기 (v1.0) 개발 및 완료 계획서
 
-본 문서는 루트의 [`PRD.md`](file:///c:/test/PRD.md)에 명시된 요구사항, 제약 조건, 예외 처리 규칙(EX-1~EX-12), 완료 조건(D-1~D-12, S1~S8)을 충실히 반영하여 작성된 스프린트 기반의 개발 계획 및 최종 완료 보고서입니다.
+본 문서는 루트의 [`PRD.md`](file:///c:/test/PRD.md)에 명시된 요구사항, 제약 조건, 예외 처리 규칙(EX-1~EX-12), 완료 조건(D-1~D-12, S1~S8) 및 추가 품질 개선(가짜 단어 차단 가드레일)을 충실히 반영하여 작성된 스프린트 기반의 개발 계획 및 최종 완료 보고서입니다.
 
 ---
 
@@ -10,7 +10,7 @@
 - **제품명**: 취약 단어 타겟형 토익 문제 생성기 (v1.0)
 - **핵심 가치**: 수험생이 입력한 취약 단어(1~5개)를 반영하여 **단 1회의 AI 호출**로 Part 5 문제 3문항과 4지 선지 전체 해설을 생성하고, 풀이 시 **추가 네트워크 호출 없이 즉각(<200ms)** 해설을 제공하는 단일 화면 웹 애플리케이션.
 - **범위**: 단일 화면 · 핵심 기능 1개 · 로그인/결제/DB 없음 · 무저장(In-Memory State Only).
-- **진행 상태**: **Sprint 0 ~ Sprint 4 전 과정 100% 완료 (배포 준비 완료)**
+- **진행 상태**: **Sprint 0 ~ Sprint 4 전 과정 100% 완료 + 가짜 단어 차단 가드레일 완비 (배포 준비 완료)**
 
 ### 1.2 핵심 설계 및 구현 불변 원칙 (Non-Negotiable)
 1. **AI 호출 세션당 정확히 1회**: 문제 생성 시 1회만 호출하며, 풀이·해설·결과 화면에서는 네트워크 요청이 절대 발생하지 않아야 함. (검증 완료)
@@ -29,8 +29,9 @@
 | **타입 & 스키마** | `Question` 인터페이스 일부 필드 불일치 | PRD §4.1 F-4 필드 명세와 100% 일치 (`lib/quiz-types.ts`) | ✅ 완료 |
 | **예외 처리** | 수동 상태 시뮬레이션 위주 | `lib/validator.ts` 기반 EX-1 ~ EX-12 실시간/응답 파싱 검증 파이프라인 자동화 | ✅ 완료 |
 | **어간 검증** | 미구현 | 영문 어간(Stem) 기반 4~5글자 매칭 및 파생형 유효성 검증 엔진 구현 (EX-5) | ✅ 완료 |
+| **가짜 단어 가드레일**| 미구현 (무작위 문자열도 억지 생성) | 2단계 하이브리드 가드레일 (클라이언트 자판 난타/음절 차단 + AI 유효성 에러 핸들링) | ✅ 완료 |
 | **공유 기능** | 미흡한 폴백 | PRD §3.3 공유 템플릿 표준 규격 준수, 사용자 취소(`AbortError`) 무반응 처리 및 수동 복사 UI 폴백 완비 | ✅ 완료 |
-| **품질 검증** | 단위/통합 테스트 없음 | 35개 예외 검증 케이스 및 D-1~D-12 총 64개 단위 테스트 100% 통과 체계 완비 | ✅ 완료 |
+| **품질 검증** | 단위/통합 테스트 없음 | 35개 예외 검증 케이스 및 가드레일 포함 총 71개 단위 테스트 100% 통과 체계 완비 | ✅ 완료 |
 
 ---
 
@@ -46,6 +47,7 @@ gantt
     Sprint 2: 검증 파이프라인 및 예외 처리(EX 1~12):done, 2026-08-27, 1d
     Sprint 3: UI/UX 인터랙션 고도화 및 상태 완성  :done, 2026-08-27, 1d
     Sprint 4: 35개 케이스 전수 검증 및 품질 최적화 :done, 2026-08-27, 1d
+    품질 개선: 가짜 단어/무작위 문자열 차단 가드레일:done, 2026-08-27, 1d
 ```
 
 ---
@@ -115,7 +117,16 @@ gantt
   - D-1 ~ D-12 및 S1 ~ S6 항목 충족 여부 검증 (7개 테스트 통과).
 - **최종 빌드 및 패키징**:
   - Next.js 16.3.3 Turbopack 프로덕션 빌드 통과 (`pnpm run build`).
-  - 총 64개 단위 테스트 100% 통과 (`pnpm test`).
+
+---
+
+### 🛡️ 추가 품질 개선: 가짜 단어/이상한 문자열 차단 하이브리드 가드레일 (완료)
+- **1단계 (클라이언트 실시간)**:
+  - 키보드 연속 난타(`asdf`, `qwer`, `zxcv`, `hjkl`, `dfgh`) 및 모음 없는 비정상 자음 나열(`bcdf`, `qwrty`, `zzzz`)을 0ms 즉시 차단하여 칩에 `· 제외` 표기.
+- **2단계 (AI 서버 및 상태 에러)**:
+  - 시스템 프롬프트에 무효 단어 거부 규칙(출제 규칙 0번) 추가 및 422 상태 코드 핸들링.
+  - 에러 발생 시 사용자 친화적인 메시지(`입력하신 단어 중 실제 영단어가 아닌 단어가 있어요. 단어를 확인해 주세요.`) 및 입력 수정 복귀 제공.
+- **검증**: `test/invalid-words.test.ts` (7개 테스트 통과).
 
 ---
 
@@ -132,7 +143,7 @@ gantt
 | **D-8, US-6** | 오답 선택 시 전용 오답 이유 표시 | Sprint 1, 3 | ✅ 완료 | [`components/explanation-panel.tsx`](file:///c:/test/components/explanation-panel.tsx), `test/sprint-3-interaction.test.ts` |
 | **D-9, D-10** | 결과 정오표, 복사/공유/새로 시작 | Sprint 3 | ✅ 완료 | [`components/result-panel.tsx`](file:///c:/test/components/result-panel.tsx), `test/sprint-3-interaction.test.ts` |
 | **D-11, D-12**| 영속 저장소 0건, 새로고침 시 초기화 | Sprint 3, 4 | ✅ 완료 | 전체 코드베이스 감사 (0건 확인) |
-| **EX-1 ~ EX-3**| 입력값 유효성 검증 및 비영어 필터링 | Sprint 0, 2 | ✅ 완료 | [`lib/parse-words.ts`](file:///c:/test/lib/parse-words.ts), `test/sprint-0.test.ts`, `test/sprint-2-exceptions.test.ts` |
+| **EX-1 ~ EX-3**| 입력값 유효성 검증 및 비영어/가짜단어 필터링 | Sprint 0, 2, 개선 | ✅ 완료 | [`lib/parse-words.ts`](file:///c:/test/lib/parse-words.ts), `test/sprint-0.test.ts`, `test/invalid-words.test.ts` |
 | **EX-4 ~ EX-6**| 문항 수 변동, 타깃 단어 어간 검증, 유형 재시도 | Sprint 2 | ✅ 완료 | [`lib/validator.ts`](file:///c:/test/lib/validator.ts), `test/sprint-2-exceptions.test.ts` |
 | **EX-9, EX-10**| AI 실패 안내 문구 및 4단계 로딩/타임아웃 | Sprint 2, 3 | ✅ 완료 | [`components/loading-overlay.tsx`](file:///c:/test/components/loading-overlay.tsx), `test/sprint-2-exceptions.test.ts` |
 | **EX-11, EX-12**| 공유 폴백 매커니즘, 5개 초과 단어 절삭 | Sprint 0, 2, 3 | ✅ 완료 | [`components/quiz-app.tsx`](file:///c:/test/components/quiz-app.tsx), `test/sprint-2-exceptions.test.ts` |
@@ -141,6 +152,6 @@ gantt
 
 ## 6. 최종 테스트 및 빌드 요약
 
-- **총 단위 테스트**: 5개 파일, **64개 테스트 전수 통과 (100% Pass)**
+- **총 단위 테스트**: 6개 파일, **71개 테스트 전수 통과 (100% Pass)**
 - **Next.js 16 프로덕션 빌드**: `pnpm run build` 성공 (에러 0건)
 - **저장소 무사용 감사**: `localStorage`, `sessionStorage`, `cookies`, `IndexedDB` 0건 충족

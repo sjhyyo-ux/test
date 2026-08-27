@@ -1,8 +1,8 @@
 # 취약 단어 타겟형 토익 문제 생성기 (v1.0) 최종 개발 완료 보고서
 
 ## 1. 개요
-- **문서 목적**: [`PRD.md`](file:///c:/test/PRD.md) 및 [`docs/DEVELOPMENT_PLAN.md`](file:///c:/test/docs/DEVELOPMENT_PLAN.md)의 모든 요구사항 구현 및 검증 결과를 기록.
-- **최종 판정**: **전 스프린트(Sprint 0 ~ Sprint 4) 완료 / 배포 준비 완료**
+- **문서 목적**: [`PRD.md`](file:///c:/test/PRD.md) 및 [`docs/DEVELOPMENT_PLAN.md`](file:///c:/test/docs/DEVELOPMENT_PLAN.md)의 모든 요구사항 구현, 12대 예외 처리 및 가짜 단어 차단 가드레일 검증 결과를 종합 기록.
+- **최종 판정**: **전 스프린트(Sprint 0 ~ Sprint 4) 완료 + 가짜 단어 차단 가드레일 완비 / 프로덕션 배포 준비 완료**
 - **작성일**: 2026-08-27
 
 ---
@@ -22,7 +22,7 @@
 - **D-10**: 결과 복사 / 시스템 공유 / 새로 시작 완비
 - **D-11 & D-12**: **영속 저장소 0건** (새로고침 시 완전 초기화, 코드 감사 통과)
 
-### 2.2 예외 처리 완료 체크리스트 (EX-1 ~ EX-12 전수 35개)
+### 2.2 예외 처리 및 가드레일 체크리스트
 - **EX-1 (4/4)**: 빈 문자열, 공백, 쉼표, 공백+쉼표 입력 시 호출 차단
 - **EX-2 (1/1)**: 난이도 미선택 시 호출 차단
 - **EX-3 (5/5)**: 한글만, 영한 혼합, 숫자, 이모지, 특수문자 비영어 필터링 및 고지
@@ -35,6 +35,7 @@
 - **EX-10 (4/4)**: 4단계 로딩 지연 (0~5s, 5~12s, 12~20s 취소 버튼, >20s 타임아웃)
 - **EX-11 (3/3)**: 클립보드 복사 토스트, 클립보드 차단 시 수동 텍스트영역 노출, 공유 취소(`AbortError`) 시 무반응
 - **EX-12 (1/1)**: 7개 단어 입력 시 앞의 5개만 채택 및 2개 절삭 고지
+- **가짜 단어 차단 가드레일 (7/7)**: 키보드 연속 난타(`asdf`, `qwer`, `zxcv`, `hjkl`), 모음 없는 자음 나열(`bcdf`, `qwrty`, `zzzz`) 실시간 차단 및 AI 유효성 에러(422) 복구
 
 ---
 
@@ -46,7 +47,8 @@
 - `test/sprint-2-exceptions.test.ts` (35 passed)
 - `test/sprint-3-interaction.test.ts` (3 passed)
 - `test/sprint-4-final-verification.test.ts` (7 passed)
-- **총 64/64 Tests Passed (100%)**
+- `test/invalid-words.test.ts` (7 passed)
+- 👉 **총 71/71 Tests Passed (100% 통과)**
 
 ### 📦 프로덕션 빌드 결과 (`pnpm run build`)
 - Next.js 16.3.3 Turbopack 프로덕션 빌드 성공 (Exit code 0).
