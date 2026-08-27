@@ -341,17 +341,18 @@ export async function POST(req: NextRequest) {
     const apiKey =
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
       process.env.AI_API_KEY ||
       process.env.OPENAI_API_KEY
 
     let parsedQuestions: unknown[] = []
 
     if (apiKey) {
-      const prompt = buildSystemPrompt(cleanWords, difficulty as Difficulty)
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
       
-      // Google Gemini API 호출
+      // Google Gemini API 호출 (Structured JSON Schema 적용)
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -360,6 +361,53 @@ export async function POST(req: NextRequest) {
             generationConfig: {
               responseMimeType: 'application/json',
               temperature: 0.7,
+              responseSchema: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    id: { type: 'STRING' },
+                    type: { type: 'STRING', enum: ['vocab', 'grammar', 'prep_conj'] },
+                    targetWord: { type: 'STRING' },
+                    stem: { type: 'STRING' },
+                    choices: {
+                      type: 'ARRAY',
+                      items: {
+                        type: 'OBJECT',
+                        properties: {
+                          key: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
+                          text: { type: 'STRING' },
+                        },
+                        required: ['key', 'text'],
+                      },
+                    },
+                    answer: { type: 'STRING', enum: ['A', 'B', 'C', 'D'] },
+                    explanations: {
+                      type: 'OBJECT',
+                      properties: {
+                        A: { type: 'STRING' },
+                        B: { type: 'STRING' },
+                        C: { type: 'STRING' },
+                        D: { type: 'STRING' },
+                      },
+                      required: ['A', 'B', 'C', 'D'],
+                    },
+                    translation: { type: 'STRING' },
+                    wordNote: { type: 'STRING' },
+                  },
+                  required: [
+                    'id',
+                    'type',
+                    'targetWord',
+                    'stem',
+                    'choices',
+                    'answer',
+                    'explanations',
+                    'translation',
+                    'wordNote',
+                  ],
+                },
+              },
             },
           }),
         },

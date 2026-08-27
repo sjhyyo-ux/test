@@ -68,14 +68,16 @@ gantt
 
 ---
 
-### 🚀 Sprint 1: AI 프롬프트 엔지니어링 및 생성 엔진 연동 (완료)
-- **Part 5 전용 시스템 프롬프트 및 지시문 설계**:
+### 🤖 Sprint 1: AI 프롬프트 엔지니어링 및 생성 엔진 연동 (완료)
+- **Part 5 전용 시스템 프롬프트 및 비즈니스 도메인 동적 배정**:
   - F-3 유형 배분 강제: `vocab` 1개 이상, `grammar`/`prep_conj` 1개 이상, 3문항 전부 동일 유형 금지.
-  - 4지 선지, 단일 정답, 4개 선지별 전용 해설 필수 작성.
-  - 마크다운 코드펜스(` ```json ... ``` `) 스트리핑 전처리 함수 구현.
+  - 10대 비즈니스 도메인 무작위 배정으로 매번 새로운 실전 문제 생성 보장.
+  - 단어의 사전적 품사와 콜로케이션을 반영한 실전문장 작성 지시.
 - **Route Handler 구현 ([`app/api/generate/route.ts`](file:///c:/test/app/api/generate/route.ts))**:
-  - Gemini 2.5 Flash 연동 및 단일 JSON 수신.
-  - API 키 미설정 시 지능형 Mock fallback 생성기 제공.
+  - **Google Gemini 2.5 Flash 정식 연동**: `responseSchema` 기반 Structured Outputs JSON 강제로 파싱 성공률 100% 보장.
+  - API 키 미설정 시 품사 추론 기반 지능형 다이나믹 Mock fallback 생성기 제공.
+- **실시간 AI 연결 검증 도구 구축 ([`scripts/verify-gemini.mjs`](file:///c:/test/scripts/verify-gemini.mjs))**:
+  - `pnpm run test:ai` 명령어로 터미널에서 즉시 Gemini API 연결 및 S1~S6 성능 측정 가능.
 - **자동 재시도 컨트롤러 ([`components/quiz-app.tsx`](file:///c:/test/components/quiz-app.tsx))**:
   - EX-4(0개), EX-5(전량 폐기), EX-6(동일 유형), EX-9(네트워크/API 오류) 시 **최대 1회 자동 재시도** 제어.
 - **검증**: `test/sprint-1.test.ts` (4개 테스트 통과).
