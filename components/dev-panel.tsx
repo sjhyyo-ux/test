@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronDown, SlidersHorizontal } from 'lucide-react'
-import type { QuizState } from '@/lib/quiz-reducer'
+import type { QuizState, SetKey } from '@/lib/quiz-reducer'
 import type { ChoiceKey, Question } from '@/lib/quiz-types'
 import { cn } from '@/lib/utils'
 
@@ -71,6 +71,12 @@ const DEV_PREVIEW_QUESTIONS: Question[] = [
     wordNote: 'despite (전치사) = ~에도 불구하고',
   },
 ]
+
+/** setKey('three'/'two')별 미리보기 문항 세트. E5(2문항 세트)·채점 시나리오에서 참조한다 */
+const QUESTION_SETS: Record<SetKey, Question[]> = {
+  three: DEV_PREVIEW_QUESTIONS,
+  two: DEV_PREVIEW_QUESTIONS.slice(0, 2),
+}
 
 interface Scenario {
   id: string
@@ -151,7 +157,7 @@ const GRADE_SCENARIOS: Scenario[] = [
     patch: (state) => {
       const questions = QUESTION_SETS[state.setKey]
       const answers = [...state.answers]
-      answers[state.current] = wrongKeyOf(state, state.current)
+      answers[state.current] = wrongKeyOf(questions, state.current)
       return { phase: 'quiz', questions, answers, explanationBroken: false }
     },
   },

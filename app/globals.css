@@ -37,8 +37,9 @@
   --color-incorrect: var(--incorrect);
   --color-incorrect-soft: var(--incorrect-soft);
 
-  /* 폰트: 한글 UI = sans, 영어 지문 = serif */
-  --font-sans: var(--font-sans-kr), 'Apple SD Gothic Neo', system-ui, sans-serif;
+  /* 폰트: UI = Inter(라틴) + IBM Plex Sans KR(한글 폴백), 영어 지문 = Literata */
+  --font-sans: var(--font-sans-en), var(--font-sans-kr), 'Apple SD Gothic Neo',
+    system-ui, sans-serif;
   /* 영어 세리프 뒤에 한글 폰트를 폴백으로 둬서 한글이 두부(tofu)로 깨지지 않게 한다 */
   --font-serif: var(--font-serif-en), Georgia, var(--font-sans-kr),
     'Apple SD Gothic Neo', serif;
@@ -50,8 +51,8 @@
   --text-title: 1.0625rem;
   --text-title--line-height: 1.45;
   --text-title--letter-spacing: -0.01em;
-  --text-passage: 1.1875rem;
-  --text-passage--line-height: 1.8;
+  --text-passage: 1.125rem;
+  --text-passage--line-height: 1.6;
   --text-body: 0.9375rem;
   --text-body--line-height: 1.6;
   --text-caption: 0.8125rem;
@@ -59,11 +60,13 @@
   --text-micro: 0.75rem;
   --text-micro--line-height: 1.4;
 
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  /* Terra: "Round-Twelve" — 컨테이너/버튼/인풋은 전부 12px로 통일한다.
+     (알약형 rounded-full 요소만 예외로 별도 유지) */
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
 
   --animate-explain: explain 180ms ease-out;
   --animate-toast-in: toast-in 160ms ease-out;
@@ -93,31 +96,35 @@
 
 :root {
   color-scheme: light;
-  --background: oklch(0.977 0.003 106);
-  --foreground: oklch(0.21 0.012 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.012 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.012 250);
-  --primary: oklch(0.45 0.087 253);
-  --primary-foreground: oklch(0.99 0.002 250);
-  --primary-soft: oklch(0.955 0.017 253);
-  --secondary: oklch(0.955 0.004 106);
-  --secondary-foreground: oklch(0.3 0.012 250);
-  --muted: oklch(0.958 0.003 106);
-  --muted-foreground: oklch(0.52 0.011 250);
-  --accent: oklch(0.955 0.017 253);
-  --accent-foreground: oklch(0.4 0.08 253);
-  --destructive: oklch(0.52 0.15 25);
-  --border: oklch(0.912 0.004 106);
-  --border-strong: oklch(0.82 0.006 250);
-  --input: oklch(0.9 0.004 106);
-  --ring: oklch(0.45 0.087 253);
+  /* Terra 팔레트 (design.md 기준, hex -> oklch 변환)
+     background #FAF6F0 / surface container #F5F1EA / text #1C1C1C
+     text muted #6B6B6B / primary #4A7C59 / error #BA1A1A */
+  --background: oklch(0.975 0.009 78.3);
+  --foreground: oklch(0.226 0 0);
+  --card: oklch(0.959 0.01 81.8);
+  --card-foreground: oklch(0.226 0 0);
+  --popover: oklch(0.959 0.01 81.8);
+  --popover-foreground: oklch(0.226 0 0);
+  --primary: oklch(0.541 0.077 152.7);
+  --primary-foreground: oklch(1 0 0);
+  --primary-soft: oklch(0.93 0.03 152.7);
+  --secondary: oklch(0.955 0.008 81.8);
+  --secondary-foreground: oklch(0.3 0.01 81.8);
+  --muted: oklch(0.959 0.01 81.8);
+  --muted-foreground: oklch(0.528 0 0);
+  --accent: oklch(0.93 0.03 152.7);
+  --accent-foreground: oklch(0.4 0.07 152.7);
+  --destructive: oklch(0.506 0.193 27.7);
+  --border: oklch(0.9 0.01 81.8);
+  --border-strong: oklch(0.8 0.015 81.8);
+  --input: oklch(0.88 0.01 81.8);
+  --ring: oklch(0.541 0.077 152.7);
 
-  --correct: oklch(0.47 0.093 158);
-  --correct-soft: oklch(0.955 0.026 158);
-  --incorrect: oklch(0.52 0.15 25);
-  --incorrect-soft: oklch(0.958 0.024 25);
+  /* 정답/오답: primary(세이지 그린)와 혼동되지 않도록 정답은 틸 계열로 분리 */
+  --correct: oklch(0.536 0.082 175.3);
+  --correct-soft: oklch(0.93 0.025 175.3);
+  --incorrect: oklch(0.506 0.193 27.7);
+  --incorrect-soft: oklch(0.95 0.03 27.7);
 
   --radius: 0.75rem;
 }

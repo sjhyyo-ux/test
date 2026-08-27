@@ -1,10 +1,18 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { IBM_Plex_Sans_KR, IBM_Plex_Serif } from 'next/font/google'
+import { IBM_Plex_Sans_KR, Inter, Literata } from 'next/font/google'
 import './globals.css'
 
-// 한글 UI 본문용: IBM Plex Sans KR — 한글 자소 폭이 고르고 작은 크기에서도 획이 뭉치지 않아
-// 해설처럼 조밀한 한글 텍스트의 가독성이 좋다.
+// UI 본문용: Inter — Terra 디자인 시스템의 UI 폰트(design.md §3).
+// Inter는 한글 글리프가 없어 IBM Plex Sans KR을 폴백으로 붙여, 라틴 문자는 Inter로
+// 렌더링되고 한글은 자동으로 폴백 폰트로 넘어가도록 한다.
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans-en',
+  display: 'swap',
+})
+
 const plexSansKr = IBM_Plex_Sans_KR({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
@@ -12,9 +20,9 @@ const plexSansKr = IBM_Plex_Sans_KR({
   display: 'swap',
 })
 
-// 영어 지문용: IBM Plex Serif — 같은 패밀리 계열이라 톤이 어긋나지 않고,
-// 세리프가 시험지 지문 같은 인상을 주어 한글 UI와 역할이 시각적으로 분리된다.
-const plexSerif = IBM_Plex_Serif({
+// 영어 지문/보기/해설용: Literata — 공식 토익 지면과 유사한 인상을 주면서
+// 장문 읽기에 최적화된 세리프(design.md §3).
+const literata = Literata({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
   variable: '--font-serif-en',
@@ -30,7 +38,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#f7f7f5',
+  themeColor: '#faf6f0',
   width: 'device-width',
   initialScale: 1,
 }
@@ -43,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`light bg-background ${plexSansKr.variable} ${plexSerif.variable}`}
+      className={`light bg-background ${inter.variable} ${plexSansKr.variable} ${literata.variable}`}
     >
       <body className="bg-background text-foreground antialiased">
         {children}

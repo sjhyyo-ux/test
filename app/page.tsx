@@ -1,6 +1,6 @@
-import { QuizApp } from '@/components/quiz-app'
+import { LandingPage } from '@/components/landing-page'
 
-// 화면은 1개. 모든 상태 전환은 QuizApp 내부 state로만 처리한다.
+// 서비스 소개 + CTA를 보여주는 랜딩페이지. 실제 문제 생성 서비스는 /app 참고.
 export default function Page() {
-  return <QuizApp />
+  return <LandingPage />
 }
