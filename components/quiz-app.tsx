@@ -212,7 +212,7 @@ export function QuizApp() {
 
   return (
     <div className="min-h-dvh bg-background">
-      <main className="mx-auto w-full max-w-[34rem] px-5 py-8 sm:py-12">
+      <main className="mx-auto w-full max-w-[50rem] px-5 py-8 sm:py-12">
         {showInput && (
           <InputPanel
             rawInput={state.rawInput}
