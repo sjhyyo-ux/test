@@ -29,7 +29,88 @@ export interface ParsedWords {
  * EX-3 허용 문자:
  * 영문자(A-Z, a-z), 하이픈(-), 어퍼스트로피('), 단어 내부 공백(구동사: look forward to)
  */
-const ENGLISH_WORD = /^[A-Za-z][A-Za-z\s'-]*[A-Za-z]$|^[A-Za-z]$/
+const ENGLISH_CHAR_PATTERN = /^[A-Za-z][A-Za-z\s'-]*[A-Za-z]$|^[A-Za-z]$/
+
+/** 키보드 연속 난타 패턴 (가로 4글자 이상 연속 자판 배열) */
+const KEYBOARD_PATTERNS = [
+  'qwertyuiop',
+  'asdfghjkl',
+  'zxcvbnm',
+  'poiuytrewq',
+  'lkjhgfdsa',
+  'mnbvcxz',
+]
+
+function hasKeyboardRowSequence(word: string): boolean {
+  if (word.length < 4) return false
+  const lower = word.toLowerCase()
+  for (const row of KEYBOARD_PATTERNS) {
+    for (let i = 0; i <= row.length - 4; i++) {
+      const sub = row.slice(i, i + 4)
+      if (lower.includes(sub)) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/** a,e,i,o,u 모음이 없고 y만으로 구성된 실존 영단어 화이트리스트 */
+const VALID_Y_ONLY_WORDS = new Set([
+  'by', 'my', 'fly', 'cry', 'dry', 'fry', 'pry', 'shy', 'sky', 'spy', 'try', 'why',
+  'gym', 'lynx', 'myth', 'sync', 'crypt', 'hymn', 'cyst', 'gypsy', 'lymph', 'nymph', 'rhythm', 'psych', 'sly', 'wry',
+])
+
+/**
+ * 실존하지 않는 무작위 문자열(Gibberish) 및 자음 난타 휴리스틱 감지
+ */
+export function isPlausibleEnglishWord(raw: string): boolean {
+  if (!ENGLISH_CHAR_PATTERN.test(raw)) return false
+
+  // 1글자 단어는 'a', 'i', 'A', 'I'만 인정
+  if (raw.length === 1) {
+    return /^[ai]$/i.test(raw)
+  }
+
+  // 어퍼스트로피 축약형 제거 (예: client's -> client, don't -> dont)
+  const cleaned = raw.toLowerCase().replace(/'(s|t|d|re|ve|ll|m)\b/g, '').replace(/'/g, '')
+
+  // 공백이나 하이픈으로 분리된 서브 토큰별 검사 (구동사 및 하이픈 복합어 대응)
+  const subWords = cleaned.split(/[\s-]+/).filter(Boolean)
+  if (subWords.length === 0) return false
+
+  for (const word of subWords) {
+    // 1글자 서브토큰은 a, i만 허용
+    if (word.length === 1 && !/^[ai]$/.test(word)) {
+      return false
+    }
+
+    // 키보드 자판 4글자 이상 연속 난타 (asdf, qwer, zxcv, hjkl, dfgh 등)
+    if (hasKeyboardRowSequence(word)) {
+      return false
+    }
+
+    // a, e, i, o, u 모음이 전혀 없는 경우
+    if (!/[aeiou]/.test(word)) {
+      // y도 없거나, y만 있는데 유효한 y-단어 목록에 없으면 가짜 단어로 판정 (예: zzzz, bcdf, qwrty)
+      if (!word.includes('y') || !VALID_Y_ONLY_WORDS.has(word)) {
+        return false
+      }
+    }
+
+    // 동일 문자 3회 이상 연속 (예: aaa, zzz, fff)
+    if (/([a-z])\1\1/.test(word)) {
+      return false
+    }
+
+    // 연속 자음 6개 이상 (예: bcdfghj)
+    if (/[bcdfghjklmnpqrstvwxz]{6,}/.test(word)) {
+      return false
+    }
+  }
+
+  return true
+}
 
 export function parseWords(raw: string): ParsedWords {
   const pieces = raw
@@ -45,7 +126,7 @@ export function parseWords(raw: string): ParsedWords {
   const seenLower = new Set<string>()
 
   for (const piece of pieces) {
-    if (!ENGLISH_WORD.test(piece)) {
+    if (!isPlausibleEnglishWord(piece)) {
       tokens.push({ raw: piece, status: 'not-english' })
       excluded.push(piece)
       continue

@@ -30,6 +30,8 @@ function buildSystemPrompt(words: string[], difficulty: Difficulty): string {
 위 취약 단어들을 반드시 지문(stem) 또는 선지(choices)에 직접 활용하여 실전 토익 Part 5 3문항 세트를 생성하세요.
 
 [핵심 출제 규칙 - 위반 절대 금지]
+0. 단어 유효성 검사: 입력된 취약 단어가 실제 영어 단어가 아니거나 무의미한 난타 문자열(예: asdfgh, qwrty, zzzzz 등)인 경우, 억지로 가짜 문제를 만들지 말고 반드시 다음 JSON 형태로만 응답하세요:
+   { "error": "invalid_word", "invalidWords": ["해당단어"] }
 1. 문항 수: 반드시 정확히 3문항을 생성하세요.
 2. 문제 유형 (3문항 유형이 전부 동일하면 안 됨):
    - 'vocab' (어휘): 최소 1문항 필수. 타깃 단어와 혼동되는 유의어/파생어 중 문맥에 맞는 것 고르기.
@@ -198,6 +200,12 @@ export async function POST(req: NextRequest) {
 
       try {
         const parsed = JSON.parse(cleaned)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.error === 'invalid_word') {
+          return NextResponse.json(
+            { error: 'invalid_word', invalidWords: parsed.invalidWords || cleanWords },
+            { status: 422 },
+          )
+        }
         parsedQuestions = Array.isArray(parsed) ? parsed : parsed.questions || []
       } catch (parseError) {
         console.error('JSON parsing failed:', parseError, cleaned)

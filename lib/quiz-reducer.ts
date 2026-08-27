@@ -7,7 +7,7 @@ import type { ChoiceKey, Difficulty, Question } from './quiz-types'
 export type Phase = 'input' | 'loading' | 'quiz' | 'result' | 'error'
 
 /** 실패 사유별 문구 (기술 용어는 절대 노출하지 않는다) */
-export type ErrorKind = 'generic' | 'busy' | 'network' | 'timeout'
+export type ErrorKind = 'generic' | 'busy' | 'network' | 'timeout' | 'invalid_word'
 
 /** 로딩 경과 단계: 0=0~5초, 1=5~12초, 2=12~20초 */
 export type LoadingStage = 0 | 1 | 2
@@ -46,6 +46,7 @@ export const ERROR_MESSAGE: Record<ErrorKind, string> = {
   busy: '지금은 요청이 많아요. 잠시 후 다시 시도해 주세요.',
   network: '인터넷 연결을 확인해 주세요.',
   timeout: '시간이 너무 오래 걸려서 중단했어요. 다시 시도해 주세요.',
+  invalid_word: '입력하신 단어 중 실제 영단어가 아닌 단어가 있어요. 단어를 확인해 주세요.',
 }
 
 export const initialState: QuizState = {

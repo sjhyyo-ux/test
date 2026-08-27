@@ -97,6 +97,13 @@ export function QuizApp() {
           })
 
           if (!res.ok) {
+            if (res.status === 422) {
+              const errData = await res.json().catch(() => ({}))
+              if (errData.error === 'invalid_word') {
+                dispatch({ type: 'generate/fail', kind: 'invalid_word' })
+                return
+              }
+            }
             if (res.status === 429) {
               if (attempt === 0) continue // 1회 재시도
               dispatch({ type: 'generate/fail', kind: 'busy' })
