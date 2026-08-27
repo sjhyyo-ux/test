@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { attachJosa } from '@/lib/korean-josa'
 import { validateAndSanitizeQuestions, validateQuestionQuality } from '@/lib/validator'
+import { findLexiconQuestions } from '@/lib/lexicon-database'
 import type { ChoiceKey, Difficulty, Question, QuestionType } from '@/lib/quiz-types'
 
 function stripMarkdownFences(text: string): string {
@@ -327,6 +328,19 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanWords = words.slice(0, 5).map((w: string) => String(w).trim())
+
+    // 🚀 1. 하이브리드 고속 경로: 사전 검증 문제은행(Lexicon) 0ms 즉시 조회
+    const lexiconMatched = findLexiconQuestions(cleanWords)
+    if (lexiconMatched.length >= 3) {
+      console.log('[Lexicon Hit] Serving 3 verified questions from In-Memory Lexicon (<50ms):', cleanWords)
+      return NextResponse.json({
+        questions: lexiconMatched.slice(0, 3),
+        isHomogeneous: false,
+        discardedCount: 0,
+        source: 'lexicon_cache',
+      })
+    }
+
     const apiKey =
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
